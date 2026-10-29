@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RailroaderGameDir Condition="'$(RailroaderGameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Railroader</RailroaderGameDir>
+    <ManagedDir>$(RailroaderGameDir)\Railroader_Data\Managed</ManagedDir>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(ManagedDir)\Railroader.dll')">
+    <Reference Include="Railroader">
+      <HintPath>$(ManagedDir)\Railroader.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Core">
+      <HintPath>$(ManagedDir)\Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PrettyConvenientMenu.csproj" />
+  </ItemGroup>
+</Project>

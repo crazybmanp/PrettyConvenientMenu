@@ -1,0 +1,16 @@
+{
+  "identifier": "crzbp/a-pretty-convenient-menu",
+  "version": "0.1.0",
+  "name": "A Pretty Convenient Menu",
+  "author": "crazybmanp",
+  "description": "A pretty convenient industry production and facility monitor for Railroader.",
+  "license": "MIT",
+  "assemblies": [
+    "PrettyConvenientMenu.dll"
+  ],
+  "dependencies": {
+    "required": [
+      "rr/game >=0.6.0"
+    ]
+  }
+}

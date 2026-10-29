@@ -1,0 +1,95 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PrettyConvenientMenu</AssemblyName>
+    <RootNamespace>PrettyConvenientMenu</RootNamespace>
+    <OutputPath>..\Assemblies</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevelStyle>latest</AnalysisLevelStyle>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <!-- Game Directory Path -->
+  <PropertyGroup>
+    <RailroaderGameDir Condition="'$(RailroaderGameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Railroader</RailroaderGameDir>
+    <ManagedDir>$(RailroaderGameDir)\Railroader_Data\Managed</ManagedDir>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(ManagedDir)\Railroader.dll')">
+    <Reference Include="Railroader">
+      <HintPath>$(ManagedDir)\Railroader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Railroader.Modding">
+      <HintPath>$(ManagedDir)\Railroader.Modding.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Core">
+      <HintPath>$(ManagedDir)\Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Serilog">
+      <HintPath>$(ManagedDir)\Serilog.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(ManagedDir)\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(ManagedDir)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(ManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.4.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PrettyConvenientMenu.Tests" />
+  </ItemGroup>
+
+  <!-- Dedicated Test Target: Trigger with `dotnet build -c Release -t:Test` -->
+  <Target Name="Test" DependsOnTargets="Build">
+    <PropertyGroup>
+      <GameModDir Condition="'$(GameModDir)' == ''">$(RailroaderGameDir)\Mods\CRZBP.APrettyConvenientMenu</GameModDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <ModAssembly Include="$(TargetDir)PrettyConvenientMenu.dll" />
+      <ModAssembly Include="$(TargetDir)PrettyConvenientMenu.pdb" Condition="Exists('$(TargetDir)PrettyConvenientMenu.pdb')" />
+      <ModAssembly Include="$(TargetDir)0Harmony.dll" Condition="Exists('$(TargetDir)0Harmony.dll')" />
+      <ModManifest Include="$(MSBuildProjectDirectory)\..\Info.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ModAssembly)" DestinationFolder="$(GameModDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ModManifest)" DestinationFolder="$(GameModDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="[PrettyConvenientMenu] Deployed mod files to $(GameModDir)" />
+  </Target>
+</Project>

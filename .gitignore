@@ -1,0 +1,48 @@
+## .NET / Visual Studio gitignore tailored for PrettyConvenientMenu
+
+# Local project documentation (ignored per workspace configuration)
+docs/
+
+# Build results
+[Bb]in/
+[Oo]bj/
+[Aa]ssemblies/
+[Bb]uilds/
+Generated\ Files/
+[Tt]emp/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# User-specific / Environment files
+*.rsuser
+*.suo
+*.cache
+*.tmp
+*.log
+AGENTS.md
+agents.md
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini

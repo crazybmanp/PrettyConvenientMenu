@@ -147,12 +147,6 @@ namespace PrettyConvenientMenu.Data.Collectors
             }
         }
 
-        public void ScanEnRouteTraffic(Industry industry, IndustrySnapshot snapshot)
-        {
-            // TODO: Scan TrainController.Shared.Cars for en-route cars waybilled to this commercial facility's loaders/unloaders
-            // and populate an "En Route (Arriving)" SpurCarGroup with scheduled inbound/outbound buffer tallies.
-        }
-
         public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
         {
             if (industry.usesContract && snapshot.CurrentTier == 0)

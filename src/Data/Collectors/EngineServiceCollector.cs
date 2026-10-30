@@ -1,12 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Model;
 using Model.Ops;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.Helpers;
-using PrettyConvenientMenu.Data.RollingStock;
-using PrettyConvenientMenu.Data.Spurs;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Collectors
@@ -59,79 +56,6 @@ namespace PrettyConvenientMenu.Data.Collectors
                     buffer.MaxCapacity = Mathf.Max(0.001f, unloader.maxStorage);
                     buffer.IsRepairParts = isRepairParts;
                 }
-            }
-        }
-
-        public void ScanEnRouteTraffic(Industry industry, IndustrySnapshot snapshot)
-        {
-            List<IndustryComponent>? components = industry.Components;
-            if (components == null || TrainController.Shared == null) return;
-
-            OpsController? opsController = OpsController.Shared;
-            if (opsController == null) return;
-
-            HashSet<string> spottedCarIds = new HashSet<string>(16);
-            foreach (SpurCarGroup group in snapshot.SpurGroups)
-            {
-                foreach (SpottedCarInfo carInfo in group.Cars)
-                {
-                    spottedCarIds.Add(carInfo.ReportingMark);
-                    if (carInfo.CarId is { } id) spottedCarIds.Add(id);
-                }
-            }
-
-            // En-route cars are discovered on active trains in transit across the world map.
-            // Unlike spotted cars (which are discovered and bulk-created by SpurClassifier on physical tracks),
-            // arriving en-route cars are instantiated individually here for the "En Route (Arriving)" display group.
-            SpurCarGroup? enRouteGroup = null;
-
-            foreach (Car car in TrainController.Shared.Cars)
-            {
-                if (ReferenceEquals(car, null) || car == null ||
-                    (car.DisplayName is { } carName && spottedCarIds.Contains(carName)) ||
-                    (car.id is { } carIdentifier && spottedCarIds.Contains(carIdentifier)))
-                {
-                    continue;
-                }
-
-                IOpsCar? opsCar = opsController.CachedOpsCar(car);
-                if (opsCar?.Waybill is not { } waybill) continue;
-
-                foreach (IndustryComponent component in components)
-                {
-                    if (component is IndustryUnloader unloader && unloader.load is { } load && CarTrackingHelper.IsWaybilledHere(waybill, industry, unloader))
-                    {
-                        (float qty, float cap) = opsCar.QuantityOfLoad(load);
-
-                        foreach (BufferInfo buffer in snapshot.Buffers)
-                        {
-                            if (buffer.CargoType == load.id)
-                            {
-                                buffer.ScheduledInbound += qty;
-                                break;
-                            }
-                        }
-
-                        if (enRouteGroup is null)
-                        {
-                            enRouteGroup = new SpurCarGroup
-                            {
-                                TrackName = "En Route (Arriving)",
-                                Role = SpurRole.EnRouteWaybill
-                            };
-                        }
-
-                        enRouteGroup.Cars.Add(SpottedCarInfo.CreateEnRoute(car, opsCar, load, qty, cap));
-                        if (car.DisplayName is { } name) spottedCarIds.Add(name);
-                        if (car.id is { } id) spottedCarIds.Add(id);
-                        break;
-                    }
-                }
-            }
-
-            if (enRouteGroup is { Cars: { Count: > 0 } })
-            {
-                snapshot.SpurGroups.Add(enRouteGroup);
             }
         }
 

@@ -13,8 +13,8 @@ namespace PrettyConvenientMenu.Data.RollingStock
     /// </summary>
     public sealed class SpottedCarInfo
     {
-        public Car? Car { get; }
-        public IOpsCar OpsCar { get; }
+        public Car? Car { get; private set; }
+        public IOpsCar OpsCar { get; private set; }
 
         public string CarId { get; set; } = string.Empty;
         public string ReportingMark { get; set; } = string.Empty;
@@ -76,77 +76,70 @@ namespace PrettyConvenientMenu.Data.RollingStock
 
         // --- In-place Lifecycle State Mutations ---
 
-        public void MarkTransfer(Load load, float currentAmount, float capacityAmount, float ratePerMin, TimeSpan? eta, string actionName)
+        public void SetLoad(Load load, float currentAmount, float capacityAmount)
         {
             CargoName = load.description ?? "Cargo";
             Units = load.units;
             CurrentAmount = currentAmount;
-            CapacityAmount = capacityAmount;
+            CapacityAmount = capacityAmount > 0.001f ? capacityAmount : load.NominalQuantityPerCarLoad;
+        }
+
+        public void MarkTransfer(float ratePerMin, TimeSpan? eta, string actionName)
+        {
             TransferRatePerMinute = ratePerMin;
             EstimatedTimeToCompletion = eta;
             StatusState = CarStatusState.ActiveTransfer;
             StatusDetail = actionName;
         }
 
-        public void MarkQueued(Load load, float currentAmount, float capacityAmount, TimeSpan? eta, string detail = "Queued")
+        public void MarkQueued(TimeSpan? eta, string detail = "Queued")
         {
-            CargoName = load.description ?? "Cargo";
-            Units = load.units;
-            CurrentAmount = currentAmount;
-            CapacityAmount = capacityAmount;
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = eta;
             StatusState = CarStatusState.Queued;
             StatusDetail = detail;
         }
 
-        public void MarkBlocked(Load load, float currentAmount, float capacityAmount, string detail)
+        public void MarkBlocked(string detail)
         {
-            CargoName = load.description ?? "Cargo";
-            Units = load.units;
-            CurrentAmount = currentAmount;
-            CapacityAmount = capacityAmount;
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
             StatusState = CarStatusState.Blocked;
             StatusDetail = detail;
         }
 
-        public void MarkReady(Load? load = null, float? currentAmount = null, float? capacityAmount = null)
+        public void MarkReady()
         {
-            if (load != null)
-            {
-                CargoName = load.description ?? "Cargo";
-                Units = load.units;
-            }
-            if (currentAmount.HasValue) CurrentAmount = currentAmount.Value;
-            if (capacityAmount.HasValue) CapacityAmount = capacityAmount.Value;
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
             StatusState = CarStatusState.Completed;
             StatusDetail = "Ready";
         }
 
-        public void MarkRepair(float partsDemand, CarStatusState statusState, string statusDetail, float condition)
+        public void MarkServiced(float condition, bool hasWaybill = false)
+        {
+            TransferRatePerMinute = 0f;
+            EstimatedTimeToCompletion = null;
+            StatusState = CarStatusState.Serviced;
+            StatusDetail = hasWaybill ? "Serviced (Waybilled)" : "Serviced (Ready)";
+            CustomLoadString = $"{condition * 100f:F0}%";
+        }
+
+        public void MarkRepair(float partsDemand, CarStatusState statusState, string statusDetail, float condition, TimeSpan? eta = null)
         {
             CargoName = "Parts";
             Units = LoadUnits.Pounds;
             CurrentAmount = partsDemand;
             CapacityAmount = partsDemand;
             TransferRatePerMinute = 0f;
-            EstimatedTimeToCompletion = null;
+            EstimatedTimeToCompletion = eta;
             StatusState = statusState;
             StatusDetail = statusDetail;
-            CustomLoadString = $"Cond: {condition * 100f:F0}%";
+            CustomLoadString = $"{condition * 100f:F0}%";
         }
 
-        public void MarkMisspotted(string destinationName, Load? load = null)
+        public void MarkMisspotted(string destinationName)
         {
-            if (load != null)
-            {
-                CargoName = load.description ?? "Cargo";
-                Units = load.units;
-            }
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
             StatusState = CarStatusState.WrongDestination;
@@ -154,48 +147,20 @@ namespace PrettyConvenientMenu.Data.RollingStock
             DestinationTrack = destinationName;
         }
 
-        public void MarkPassive(string statusDetail, Load? overrideLoad = null, float? currentAmount = null, float? capacityAmount = null)
+        public void MarkPassive(string statusDetail)
         {
-            if (overrideLoad != null)
-            {
-                CargoName = overrideLoad.description ?? (CurrentAmount > 0.001f ? "Material" : "Empty");
-                Units = overrideLoad.units;
-            }
-            if (currentAmount.HasValue) CurrentAmount = currentAmount.Value;
-            if (capacityAmount.HasValue) CapacityAmount = capacityAmount.Value;
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
             StatusState = CarStatusState.Idle;
             StatusDetail = statusDetail;
         }
 
-        /// <summary>
-        /// Instantiates a SpottedCarInfo for rolling stock discovered in transit on an active train.
-        /// Used strictly by en-route traffic scanners; cars physically spotted on facility spurs
-        /// are discovered and bulk-created upfront by SpottedCarClassifier.
-        /// </summary>
-        public static SpottedCarInfo CreateEnRoute(
-            Car? car,
-            IOpsCar? opsCar,
-            Load? load,
-            float currentAmount,
-            float capacityAmount,
-            string actionName = "En Route")
+        public void MarkEnRoute(string statusDetail = "En Route")
         {
-            return new SpottedCarInfo
-            {
-                CarId = car?.id ?? opsCar?.Id ?? string.Empty,
-                ReportingMark = opsCar?.DisplayName ?? car?.DisplayName ?? opsCar?.Id ?? string.Empty,
-                CarType = opsCar?.CarType ?? car?.Definition?.CarType ?? "Car",
-                CargoName = load?.description ?? (currentAmount > 0.001f ? "Cargo" : "Empty"),
-                Units = load?.units ?? LoadUnits.Pounds,
-                CurrentAmount = currentAmount,
-                CapacityAmount = capacityAmount,
-                TransferRatePerMinute = 0f,
-                EstimatedTimeToCompletion = null,
-                StatusState = CarStatusState.EnRoute,
-                StatusDetail = actionName
-            };
+            TransferRatePerMinute = 0f;
+            EstimatedTimeToCompletion = null;
+            StatusState = CarStatusState.EnRoute;
+            StatusDetail = statusDetail;
         }
     }
 }

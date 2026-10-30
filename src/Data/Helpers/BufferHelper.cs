@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Model.Definition.Data;
 using Model.Ops;
@@ -112,6 +113,44 @@ namespace PrettyConvenientMenu.Data.Helpers
                 }
             }
             return 100f;
+        }
+
+        public static BufferInfo? FindMatchingBuffer(List<BufferInfo> buffers, Load load, bool isUnload)
+        {
+            foreach (BufferInfo buf in buffers)
+            {
+                if (string.Equals(buf.CargoType, load.id, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (buf is CommercialBuffer comm)
+                    {
+                        if (comm.IsInput == isUnload) return comm;
+                    }
+                    else
+                    {
+                        return buf;
+                    }
+                }
+            }
+            return null;
+        }
+
+        public static ReserveBuffer? FindRepairBuffer(
+            IReadOnlyList<IndustryComponent> componentsOnSpur,
+            List<BufferInfo> buffers,
+            SpurCapabilities caps)
+        {
+            if (!caps.CanRepair) return null;
+
+            foreach (IndustryComponent comp in componentsOnSpur)
+            {
+                if (comp is RepairTrack rt)
+                {
+                    ReserveBuffer buffer = GetOrAddReserveBuffer(buffers, rt.repairPartsLoadId, "Parts", LoadUnits.Pounds, BufferRole.MaintenanceReserve);
+                    buffer.IsRepairParts = true;
+                    return buffer;
+                }
+            }
+            return null;
         }
     }
 }

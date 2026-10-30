@@ -31,32 +31,5 @@ namespace PrettyConvenientMenu.Data.Buffers
         public float ActiveOutboundRatio => MaxCapacity > 0f ? Mathf.Clamp01(ActiveOutbound / MaxCapacity) : 0f;
         public float ScheduledInboundRatio => MaxCapacity > 0f ? Mathf.Clamp01(ScheduledInbound / MaxCapacity) : 0f;
         public float CommittedOutboundRatio => MaxCapacity > 0f ? Mathf.Clamp01(CommittedOutbound / MaxCapacity) : 0f;
-
-        // Legacy compatibility properties
-        public float InboundAmount
-        {
-            get => ActiveInbound;
-            set => ActiveInbound = value;
-        }
-
-        public float EarmarkedAmount
-        {
-            get => ActiveOutbound;
-            set => ActiveOutbound = value;
-        }
-
-        public float EnRouteInboundAmount
-        {
-            get => ScheduledInbound;
-            set => ScheduledInbound = value;
-        }
-
-        public float EnRouteEarmarkedAmount
-        {
-            get => CommittedOutbound;
-            set => CommittedOutbound = value;
-        }
-
-        public float TotalEarmarked => TotalOutbound;
     }
 }

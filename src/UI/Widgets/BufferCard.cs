@@ -62,34 +62,26 @@ namespace PrettyConvenientMenu.UI.Widgets
             }
 
             // 3. Progress Bar with Overlays & Calipers
-            float cap = buf.MaxCapacity;
-            float loadRatio = cap > 0f ? buf.ActiveOutbound / cap : 0f;
-            float commRatio = cap > 0f ? buf.CommittedOutbound / cap : 0f;
-            float unloadRatio = cap > 0f ? buf.ActiveInbound / cap : 0f;
-            float inbRatio = cap > 0f ? buf.ScheduledInbound / cap : 0f;
-
             switch (mode)
             {
                 case BufferCardMode.Commercial:
-                    ProgressBarFactory.CreateCommercialBar(builder, buf.FillRatio, unloadRatio, loadRatio, commRatio, inbRatio);
+                    ProgressBarFactory.CreateCommercialBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
                     break;
                 case BufferCardMode.EngineSupply:
                     if (buf is ReserveBuffer repairBuf && repairBuf.IsRepairParts)
                     {
-                        float baseRatio = buf.FillRatio;
-                        float unloadingRatio = cap > 0f ? buf.ActiveInbound / cap : 0f;
+                        float cap = buf.MaxCapacity;
                         float programRatio = cap > 0f ? repairBuf.ProgramDemand / cap : 0f;
                         float spotRatio = cap > 0f ? repairBuf.SpotDemand / cap : 0f;
-                        float arrivingRatio = cap > 0f ? buf.ScheduledInbound / cap : 0f;
-                        ProgressBarFactory.CreateRepairPartsBar(builder, baseRatio, unloadingRatio, programRatio, spotRatio, arrivingRatio);
+                        ProgressBarFactory.CreateRepairPartsBar(builder, buf.FillRatio, buf.ActiveInboundRatio, programRatio, spotRatio, buf.ScheduledInboundRatio);
                     }
                     else
                     {
-                        ProgressBarFactory.CreateEngineSupplyBar(builder, buf.FillRatio, unloadRatio, loadRatio, commRatio, inbRatio);
+                        ProgressBarFactory.CreateEngineSupplyBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
                     }
                     break;
                 case BufferCardMode.MowReserve:
-                    ProgressBarFactory.CreateMowBar(builder, buf.FillRatio, unloadRatio, loadRatio, commRatio, inbRatio);
+                    ProgressBarFactory.CreateMowBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, null);

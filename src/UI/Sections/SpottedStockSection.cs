@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.RollingStock;
+using PrettyConvenientMenu.Data.Spurs;
 using PrettyConvenientMenu.UI.Common;
 using PrettyConvenientMenu.UI.Widgets;
 using TMPro;
@@ -52,18 +53,19 @@ namespace PrettyConvenientMenu.UI.Sections
                             continue;
                         }
 
+                        bool isRepairSpur = group.Role is SpurRole.LocomotiveRepair or SpurRole.EnRouteRepair;
                         RectTransform[] headerCells = new RectTransform[5];
                         scrollBuilder.HStack(h =>
                         {
                             h.ConfigureLayout(4f);
                             headerCells[0] = h.AddLabel("<b>Car</b>", t => t.textWrappingMode = TextWrappingModes.NoWrap);
                             headerCells[1] = h.AddLabel("<b>Status</b>", t => t.textWrappingMode = TextWrappingModes.NoWrap);
-                            headerCells[2] = h.AddLabel("<b>Load</b>", t =>
+                            headerCells[2] = h.AddLabel(isRepairSpur ? "<b>Cond</b>" : "<b>Load</b>", t =>
                             {
                                 t.alignment = TextAlignmentOptions.Center;
                                 t.textWrappingMode = TextWrappingModes.NoWrap;
                             });
-                            headerCells[3] = h.AddLabel("<b>Rate</b>", t =>
+                            headerCells[3] = h.AddLabel(isRepairSpur ? "<b>Parts</b>" : "<b>Rate</b>", t =>
                             {
                                 t.alignment = TextAlignmentOptions.Right;
                                 t.textWrappingMode = TextWrappingModes.NoWrap;
@@ -108,42 +110,61 @@ namespace PrettyConvenientMenu.UI.Sections
                                     rowCells[1].Tooltip(car1.CargoName, string.Empty);
                                 }
 
-                                string loadStr;
-                                if (!string.IsNullOrEmpty(car1.CustomLoadString))
+                                string col2Str;
+                                string col3Str;
+                                if (isRepairSpur)
                                 {
-                                    loadStr = car1.CustomLoadString!;
-                                }
-                                else if (snapshot.FacilityType == IndustryFacilityType.MaintenanceOfWay)
-                                {
-                                    if (car1.CurrentAmount > 0.001f)
+                                    if (!string.IsNullOrEmpty(car1.CustomLoadString))
                                     {
-                                        string shortAmount = FormatHelper.FormatQuantity(car1.CurrentAmount, car1.Units);
-                                        loadStr = !string.IsNullOrEmpty(car1.CargoName) && car1.CargoName != "Cargo" && car1.CargoName != "Material"
-                                            ? $"{shortAmount} {car1.CargoName}"
-                                            : $"{shortAmount} ({car1.CurrentPercent:F0}%)";
+                                        col2Str = car1.CustomLoadString!;
+                                        col3Str = car1.StatusState == CarStatusState.Serviced
+                                            ? "--"
+                                            : FormatHelper.FormatWeight(car1.CurrentAmount);
                                     }
                                     else
                                     {
-                                        loadStr = "Empty";
+                                        col2Str = "--";
+                                        col3Str = FormatHelper.FormatCarLoad(car1.CurrentAmount, car1.CurrentPercent, car1.Units);
                                     }
                                 }
                                 else
                                 {
-                                    loadStr = FormatHelper.FormatCarLoad(car1.CurrentAmount, car1.CurrentPercent, car1.Units);
+                                    if (!string.IsNullOrEmpty(car1.CustomLoadString))
+                                    {
+                                        col2Str = car1.CustomLoadString!;
+                                    }
+                                    else if (snapshot.FacilityType == IndustryFacilityType.MaintenanceOfWay)
+                                    {
+                                        if (car1.CurrentAmount > 0.001f)
+                                        {
+                                            string shortAmount = FormatHelper.FormatQuantity(car1.CurrentAmount, car1.Units);
+                                            col2Str = !string.IsNullOrEmpty(car1.CargoName) && car1.CargoName != "Cargo" && car1.CargoName != "Material"
+                                                ? $"{shortAmount} {car1.CargoName}"
+                                                : $"{shortAmount} ({car1.CurrentPercent:F0}%)";
+                                        }
+                                        else
+                                        {
+                                            col2Str = "Empty";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        col2Str = FormatHelper.FormatCarLoad(car1.CurrentAmount, car1.CurrentPercent, car1.Units);
+                                    }
+
+                                    col3Str = (car1.IsActiveTransfer && car1.TransferRatePerMinute > 0.0001f)
+                                        ? FormatHelper.FormatTransferRate(car1.TransferRatePerMinute, car1.Units)
+                                        : "--";
                                 }
 
-                                rowCells[2] = row.AddLabel(loadStr, t =>
+                                rowCells[2] = row.AddLabel(col2Str, t =>
                                 {
                                     t.alignment = TextAlignmentOptions.Center;
                                     t.textWrappingMode = TextWrappingModes.NoWrap;
                                     t.overflowMode = TextOverflowModes.Ellipsis;
                                 });
 
-                                string rateStr = (car1.IsActiveTransfer && car1.TransferRatePerMinute > 0.0001f)
-                                    ? FormatHelper.FormatTransferRate(car1.TransferRatePerMinute, car1.Units)
-                                    : "--";
-
-                                rowCells[3] = row.AddLabel(rateStr, t =>
+                                rowCells[3] = row.AddLabel(col3Str, t =>
                                 {
                                     t.alignment = TextAlignmentOptions.Right;
                                     t.textWrappingMode = TextWrappingModes.NoWrap;
@@ -170,8 +191,8 @@ namespace PrettyConvenientMenu.UI.Sections
 
                     if (allHeaders.Count > 0)
                     {
-                        float[] colShares = new float[5] { 2.0f, 1.5f, 1.8f, 1.0f, 1.0f };
-                        float[] colMaxCaps = new float[5] { 160f, 140f, 160f, 80f, 80f };
+                        float[] colShares = new float[5] { 2.0f, 1.5f, 1.4f, 1.4f, 1.0f };
+                        float[] colMaxCaps = new float[5] { 160f, 140f, 140f, 140f, 80f };
                         AutoSizedTable.ApplyColumnWidths(allHeaders, allRows, colShares, colMaxCaps);
                     }
                 });

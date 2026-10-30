@@ -21,10 +21,6 @@ namespace PrettyConvenientMenu.Data.Collectors
             snapshot.Buffers.Clear();
         }
 
-        public void ScanEnRouteTraffic(Industry industry, IndustrySnapshot snapshot)
-        {
-        }
-
         public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
         {
         }

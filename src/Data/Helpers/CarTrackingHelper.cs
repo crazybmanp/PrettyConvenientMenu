@@ -2,7 +2,6 @@ using System;
 using Model;
 using Model.Ops;
 using Model.Ops.Definition;
-using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Helpers
 {
@@ -78,41 +77,6 @@ namespace PrettyConvenientMenu.Data.Helpers
             return waybill.Value.Origin.HasValue
                 && !string.IsNullOrEmpty(waybill.Value.Origin.Value.Identifier)
                 && waybill.Value.Origin.Value.Identifier.StartsWith(industry.identifier, StringComparison.OrdinalIgnoreCase);
-        }
-
-        public static bool IsCarCompletedAt(
-            IOpsCar? opsCar,
-            Industry? industry,
-            IndustryComponent? component,
-            Load? cargo,
-            bool isInbound)
-        {
-            if (opsCar == null || industry == null || component == null)
-            {
-                return false;
-            }
-
-            if (opsCar.Waybill is not { } waybill)
-            {
-                return false;
-            }
-
-            if (!IsWaybilledHere(waybill, industry, component))
-            {
-                return false;
-            }
-
-            (float qty, float cap) = cargo != null ? opsCar.QuantityOfLoad(cargo) : (0f, 0f);
-            float zeroThreshold = cargo?.ZeroThreshold ?? 0.001f;
-
-            if (isInbound)
-            {
-                return qty <= zeroThreshold;
-            }
-            else
-            {
-                return cap > zeroThreshold && Mathf.Max(0f, cap - qty) <= zeroThreshold;
-            }
         }
     }
 }

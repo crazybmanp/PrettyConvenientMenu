@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Model.Ops;
 using PrettyConvenientMenu.Data.Collectors;
 using PrettyConvenientMenu.Data.Facilities;
+using PrettyConvenientMenu.Data.RollingStock;
 using PrettyConvenientMenu.Data.Spurs;
 
 namespace PrettyConvenientMenu.Data
@@ -73,7 +74,7 @@ namespace PrettyConvenientMenu.Data
             collector.PopulateFacilityMetadata(industry, snapshot);
             collector.PopulateBuffers(industry, snapshot);
             SpurClassifier.ClassifyAllSpurs(industry, snapshot, OpsController.Shared);
-            collector.ScanEnRouteTraffic(industry, snapshot);
+            EnRouteCarClassifier.ClassifyEnRouteCars(industry, snapshot, OpsController.Shared);
             collector.EvaluateFacilityDiagnostics(industry, snapshot);
         }
     }

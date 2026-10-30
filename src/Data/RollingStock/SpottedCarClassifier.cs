@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Model;
-using Model.Definition.Data;
 using Model.Ops;
-using Model.Ops.Definition;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.Helpers;
@@ -30,393 +28,179 @@ namespace PrettyConvenientMenu.Data.RollingStock
             SpurCapabilities caps,
             SpurRole role)
         {
-            if (carsOnTrack == null) return;
-
-            // Step 1: Instantiate our tracked car objects upfront in spurGroup.Cars
             spurGroup.Cars.Clear();
             int trackIndex = 0;
             foreach (Car car in carsOnTrack)
             {
                 if (car == null || Mathf.Abs(car.velocity) > 0.05f) continue;
-                IOpsCar? opsCar = opsController.CachedOpsCar(car);
-                if (opsCar == null) continue;
+                if (opsController.CachedOpsCar(car) is not { } opsCar) continue;
                 spurGroup.Cars.Add(new SpottedCarInfo(car, opsCar, trackIndex++));
             }
 
             if (spurGroup.Cars.Count == 0) return;
 
-            ReserveBuffer? repairBuffer = FindRepairBuffer(componentsOnSpur, snapshot, caps);
+            ReserveBuffer? repairBuffer = BufferHelper.FindRepairBuffer(componentsOnSpur, snapshot.Buffers, caps);
             float contractMultiplier = industry.GetContractMultiplier();
 
-            // Step 2: Active component operations (Unloading, Loading, Team Track, Program Repair, Material Transfer)
-            ProcessActiveComponentWork(
-                spurGroup.Cars, componentsOnSpur, industry, snapshot,
-                repairBuffer, contractMultiplier, opsController);
+            // Sequence FIFO unloader/loader queues (Commercial & Storage) across the spur
+            TransferQueueHelper.SequenceSpurQueues(
+                spurGroup.Cars, componentsOnSpur, industry, snapshot.Buffers, contractMultiplier);
 
-            // Step 3: Passive & Non-active rolling stock (Ready, Spot Repair, Staged, Stored, Parked, Misspotted)
-            ProcessNonActiveSpottedStock(
-                spurGroup.Cars, componentsOnSpur, industry,
-                repairBuffer, caps, role);
-        }
-
-        private static ReserveBuffer? FindRepairBuffer(IReadOnlyList<IndustryComponent> componentsOnSpur, IndustrySnapshot snapshot, SpurCapabilities caps)
-        {
-            if (!caps.CanRepair) return null;
-
-            foreach (IndustryComponent comp in componentsOnSpur)
+            // Evaluate each car on the spur through the classification hierarchy
+            foreach (SpottedCarInfo carInfo in spurGroup.Cars)
             {
-                if (comp is RepairTrack rt)
-                {
-                    ReserveBuffer buffer = BufferHelper.GetOrAddReserveBuffer(snapshot.Buffers, rt.repairPartsLoadId, "Parts", LoadUnits.Pounds, BufferRole.MaintenanceReserve);
-                    buffer.IsRepairParts = true;
-                    return buffer;
-                }
+                ClassifyCar(carInfo, componentsOnSpur, industry, repairBuffer, opsController, role);
             }
-            return null;
         }
 
-        private static BufferInfo? FindMatchingBuffer(List<BufferInfo> buffers, Load load, bool isUnload)
-        {
-            foreach (BufferInfo buf in buffers)
-            {
-                if (string.Equals(buf.CargoType, load.id, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (buf is CommercialBuffer comm)
-                    {
-                        if (comm.IsInput == isUnload) return comm;
-                    }
-                    else
-                    {
-                        return buf;
-                    }
-                }
-            }
-            return null;
-        }
-
-        private static void ProcessActiveComponentWork(
-            List<SpottedCarInfo> trackCars,
+        private static void ClassifyCar(
+            SpottedCarInfo carInfo,
             IReadOnlyList<IndustryComponent> componentsOnSpur,
             Industry industry,
-            IndustrySnapshot snapshot,
             ReserveBuffer? repairBuffer,
-            float contractMultiplier,
+            OpsController opsController,
+            SpurRole role)
+        {
+            // Step 1: Active Component Work (Queue already classified, or RepairTrack / TeamTrack match)
+            if (carInfo.IsClassified || TryClassifyComponentWork(carInfo, componentsOnSpur, industry, repairBuffer, opsController))
+            {
+                return;
+            }
+
+            IOpsCar opsCar = carInfo.OpsCar;
+
+            // Step 2: Finished Work Here (Ordered away from this facility and awaiting pickup)
+            if (CarTrackingHelper.IsWaybilledFromHere(opsCar.Waybill, industry))
+            {
+                carInfo.MarkReady();
+                return;
+            }
+
+            // Step 3: Foreign Waybill (Staged on maintenance tracks vs Misspotted on commercial tracks)
+            if (opsCar.Waybill is { } waybill)
+            {
+                if (role is SpurRole.MowMaterialHandling or SpurRole.MowStaging)
+                {
+                    carInfo.MarkPassive("Staged");
+                }
+                else
+                {
+                    string destName = !string.IsNullOrEmpty(waybill.Destination.DisplayName)
+                        ? waybill.Destination.DisplayName
+                        : waybill.Destination.Identifier;
+                    if (destName.Length > 20) destName = destName.Substring(0, 18) + "...";
+                    carInfo.MarkMisspotted(destName);
+                }
+                return;
+            }
+
+            // Step 4: Passive Stock (Stored yard stock vs Parked commercial empties)
+            string passiveAction = role is SpurRole.MowMaterialHandling or SpurRole.MowStaging ? "Stored" : "Parked";
+            carInfo.MarkPassive(passiveAction);
+        }
+
+        private static bool TryClassifyComponentWork(
+            SpottedCarInfo carInfo,
+            IReadOnlyList<IndustryComponent> componentsOnSpur,
+            Industry industry,
+            ReserveBuffer? repairBuffer,
             OpsController opsController)
         {
             foreach (IndustryComponent comp in componentsOnSpur)
             {
-                // 1A. Commercial Unloader
-                if (comp is IndustryUnloader { load: { } inLoad } unloader)
+                switch (comp)
                 {
-                    string? prefix = !unloader.sharedStorage ? unloader.subIdentifier : null;
-                    float currentStock = industry.Storage?.QuantityInStorage(inLoad, prefix) ?? 0f;
-                    float bufferAvailable = Mathf.Max(0f, unloader.maxStorage - currentStock);
-                    float nominalRatePerDay = unloader.carUnloadRate * contractMultiplier;
-                    float nominalRatePerMin = nominalRatePerDay / 1440f;
-                    BufferInfo? matchingBuffer = FindMatchingBuffer(snapshot.Buffers, inLoad, isUnload: true);
+                    case RepairTrack repairTrack when TryClassifyRepairTrack(carInfo, repairTrack, opsController, repairBuffer):
+                        return true;
 
-                    TransferQueueHelper.SequenceQueue(
-                        trackCars, unloader, inLoad, industry, bufferAvailable,
-                        nominalRatePerMin, isUnload: true, matchingBuffer);
-                }
-
-                // 1B. Commercial Loader
-                if (comp is IndustryLoader { load: { } outLoad } loader)
-                {
-                    string? prefix = !loader.sharedStorage ? loader.subIdentifier : null;
-                    float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
-                    float nominalRatePerDay = loader.carLoadRate * contractMultiplier;
-                    float nominalRatePerMin = nominalRatePerDay / 1440f;
-                    BufferInfo? matchingBuffer = FindMatchingBuffer(snapshot.Buffers, outLoad, isUnload: false);
-
-                    TransferQueueHelper.SequenceQueue(
-                        trackCars, loader, outLoad, industry, currentStock,
-                        nominalRatePerMin, isUnload: false, matchingBuffer);
-                }
-
-                // 1C. Team Track
-                if (comp is TeamTrack teamTrack)
-                {
-                    foreach (SpottedCarInfo carInfo in trackCars)
-                    {
-                        if (carInfo.IsClassified) continue;
-
-                        IOpsCar opsCar = carInfo.OpsCar;
-                        if (opsCar?.Waybill is not { } waybill || !CarTrackingHelper.IsWaybilledHere(waybill, industry, comp))
-                        {
-                            continue;
-                        }
-
-                        TeamTrackProfile.Entry? matchedEntry = null;
-                        foreach (TeamTrackProfile.Entry profile in teamTrack.profileEntries)
-                        {
-                            if (profile.tag == waybill.Tag)
-                            {
-                                matchedEntry = profile;
-                                break;
-                            }
-                        }
-
-                        if (!matchedEntry.HasValue || matchedEntry.Value.load is not { } ttLoad)
-                        {
-                            continue;
-                        }
-
-                        (float qty, float cap) = opsCar.QuantityOfLoad(ttLoad);
-                        float loadingTimeDays = Mathf.Max(0.1f, matchedEntry.Value.loadingTime);
-                        float ratePerDay = cap / loadingTimeDays;
-                        float ratePerMin = ratePerDay / 1440f;
-                        bool isExport = matchedEntry.Value.export;
-
-                        float toTransfer = isExport ? Mathf.Max(0f, cap - qty) : qty;
-                        TimeSpan? eta = (ratePerMin > 0.0001f && toTransfer > 0.001f)
-                            ? TimeSpan.FromMinutes(toTransfer / ratePerMin)
-                            : null;
-
-                        if (toTransfer <= 0.001f)
-                        {
-                            carInfo.MarkReady(ttLoad, qty, cap);
-                        }
-                        else
-                        {
-                            carInfo.MarkTransfer(ttLoad, qty, cap, ratePerMin, eta, isExport ? "Loading" : "Unloading");
-                        }
-                    }
-                }
-
-                // 1D. Repair Track (Program Overhaul / Program Repair)
-                if (comp is RepairTrack repairTrack)
-                {
-                    foreach (SpottedCarInfo carInfo in trackCars)
-                    {
-                        if (carInfo.IsClassified) continue;
-
-                        Car? car = carInfo.Car;
-                        if (car == null) continue;
-
-                        bool hasOverride = car.TryGetOverrideDestination(OverrideDestination.Repair, opsController, out (OpsCarPosition position, string tag)? overrideDest)
-                                           && overrideDest.HasValue;
-
-                        if (!hasOverride || !string.Equals(overrideDest!.Value.position.Identifier, repairTrack.Identifier, StringComparison.OrdinalIgnoreCase))
-                        {
-                            continue;
-                        }
-
-                        bool isOverhaul = string.Equals(overrideDest.Value.tag, "overhaul", StringComparison.OrdinalIgnoreCase)
-                                          || (car.CarType.IsTender && car.TryGetAdjacentCar(car.EndToLogical(Car.End.F), out Car adjacent) && RepairTrackHelper.IsCarInForOverhaul(adjacent, repairTrack, opsController));
-
-                        float partsDemand = RepairTrackHelper.CalculateCarRepairPartsDemand(car);
-                        if (repairBuffer != null)
-                        {
-                            repairBuffer.ProgramDemand += partsDemand;
-                        }
-
-                        CarStatusState state = isOverhaul ? CarStatusState.ProgramOverhaul : CarStatusState.ProgramRepair;
-                        string detail = isOverhaul ? "Overhaul" : "Repair";
-                        carInfo.MarkRepair(partsDemand, state, detail, car.Condition);
-                    }
-                }
-
-                // 1E. Material Transfer (StorageUnloader / StorageLoader)
-                if (comp is StorageUnloader storageUnloader)
-                {
-                    foreach (SpottedCarInfo carInfo in trackCars)
-                    {
-                        if (carInfo.IsClassified) continue;
-
-                        IOpsCar opsCar = carInfo.OpsCar;
-                        if (opsCar?.Waybill is not { } waybill || !CarTrackingHelper.IsWaybilledHere(waybill, industry, storageUnloader))
-                        {
-                            continue;
-                        }
-
-                        Car? car = carInfo.Car;
-                        (Load? actualLoad, float actualQty, float actualCap) = CarTrackingHelper.GetCarCargo(car, opsCar);
-                        if (actualLoad == null || actualQty <= actualLoad.ZeroThreshold) continue;
-
-                        string? prefix = !storageUnloader.sharedStorage ? storageUnloader.subIdentifier : null;
-                        float currentStock = industry.Storage?.QuantityInStorage(actualLoad, prefix) ?? 0f;
-
-                        float unloaderStorageCap = 100f;
-                        int unloadRateSetting = 1;
-                        foreach (StorageUnloader.LoadEntry l in storageUnloader.loads)
-                        {
-                            if (l.loadId == actualLoad.id)
-                            {
-                                unloaderStorageCap = l.storage * actualLoad.NominalQuantityPerCarLoad;
-                                unloadRateSetting = l.unloadRate;
-                                break;
-                            }
-                        }
-
-                        float spaceRemaining = Mathf.Max(0f, unloaderStorageCap - currentStock);
-                        if (spaceRemaining > actualLoad.ZeroThreshold)
-                        {
-                            float ratePerDay = unloadRateSetting * actualLoad.NominalQuantityPerCarLoad;
-                            float ratePerMin = ratePerDay / 1440f;
-                            TimeSpan? eta = ratePerMin > 0.0001f ? TimeSpan.FromMinutes(actualQty / ratePerMin) : null;
-
-                            foreach (BufferInfo b in snapshot.Buffers)
-                            {
-                                if (b.CargoType == actualLoad.id)
-                                {
-                                    b.ActiveInbound += actualQty;
-                                    break;
-                                }
-                            }
-
-                            carInfo.MarkTransfer(actualLoad, actualQty, actualCap, ratePerMin, eta, "Unloading");
-                        }
-                    }
-                }
-
-                if (comp is StorageLoader storageLoader)
-                {
-                    foreach (SpottedCarInfo carInfo in trackCars)
-                    {
-                        if (carInfo.IsClassified) continue;
-
-                        IOpsCar opsCar = carInfo.OpsCar;
-                        if (opsCar?.Waybill is not { } waybill || !CarTrackingHelper.IsWaybilledHere(waybill, industry, storageLoader))
-                        {
-                            continue;
-                        }
-
-                        Load? targetLoad = !string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null;
-                        if (targetLoad == null) continue;
-
-                        (float q, float cap) = opsCar.QuantityOfLoad(targetLoad);
-                        float toFill = Mathf.Max(0f, cap - q);
-
-                        string? prefix = !storageLoader.sharedStorage ? storageLoader.subIdentifier : null;
-                        float currentStock = industry.Storage?.QuantityInStorage(targetLoad, prefix) ?? 0f;
-
-                        if (toFill <= targetLoad.ZeroThreshold)
-                        {
-                            carInfo.MarkReady(targetLoad, q, cap);
-                        }
-                        else if (currentStock > targetLoad.ZeroThreshold)
-                        {
-                            int loadRate = 1;
-                            foreach (StorageLoader.LoadEntry l in storageLoader.loads)
-                            {
-                                if (l.loadId == targetLoad.id)
-                                {
-                                    loadRate = l.carLoadRate;
-                                    break;
-                                }
-                            }
-
-                            float ratePerDay = loadRate * targetLoad.NominalQuantityPerCarLoad;
-                            float ratePerMin = ratePerDay / 1440f;
-                            TimeSpan? eta = ratePerMin > 0.0001f ? TimeSpan.FromMinutes(toFill / ratePerMin) : null;
-
-                            foreach (BufferInfo b in snapshot.Buffers)
-                            {
-                                if (b.CargoType == targetLoad.id)
-                                {
-                                    b.ActiveOutbound += toFill;
-                                    break;
-                                }
-                            }
-
-                            carInfo.MarkTransfer(targetLoad, q, cap, ratePerMin, eta, "Loading");
-                        }
-                    }
+                    case TeamTrack teamTrack when TryClassifyTeamTrack(carInfo, teamTrack, industry):
+                        return true;
                 }
             }
+
+            return false;
         }
 
-        private static void ProcessNonActiveSpottedStock(
-            List<SpottedCarInfo> trackCars,
-            IReadOnlyList<IndustryComponent> componentsOnSpur,
-            Industry industry,
-            ReserveBuffer? repairBuffer,
-            SpurCapabilities caps,
-            SpurRole role)
+        private static bool TryClassifyRepairTrack(
+            SpottedCarInfo carInfo,
+            RepairTrack repairTrack,
+            OpsController opsController,
+            ReserveBuffer? repairBuffer)
         {
-            foreach (SpottedCarInfo carInfo in trackCars)
+            Car? car = carInfo.Car;
+            if (car == null) return false;
+
+            if (RepairTrackHelper.TryGetProgramRepairMode(car, repairTrack, opsController, out bool isOverhaul))
             {
-                if (carInfo.IsClassified) continue;
-
-                Car? car = carInfo.Car;
-                IOpsCar opsCar = carInfo.OpsCar;
-                if (opsCar == null) continue;
-
-                (Load? cargo, float cQty, float cCap) = CarTrackingHelper.GetCarCargo(car, opsCar);
-
-                // Step 2: Finished Work (Ready for pickup)
-                bool isCompletedHere = false;
-                if (CarTrackingHelper.IsWaybilledFromHere(opsCar.Waybill, industry))
+                float partsDemand = RepairTrackHelper.CalculateCarRepairPartsDemand(car);
+                if (repairBuffer is not null)
                 {
-                    isCompletedHere = true;
-                }
-                else
-                {
-                    foreach (IndustryComponent comp in componentsOnSpur)
-                    {
-                        if (CarTrackingHelper.IsCarCompletedAt(opsCar, industry, comp, cargo, comp is IndustryUnloader))
-                        {
-                            isCompletedHere = true;
-                            break;
-                        }
-                    }
+                    repairBuffer.ProgramDemand += partsDemand;
                 }
 
-                if (isCompletedHere)
+                CarStatusState state = isOverhaul ? CarStatusState.ProgramOverhaul : CarStatusState.ProgramRepair;
+                string detail = isOverhaul ? "Program Overhaul" : "Program Repair";
+                TimeSpan? eta = RepairTrackHelper.CalculateRepairEta(partsDemand, repairTrack);
+                carInfo.MarkRepair(partsDemand, state, detail, car.Condition, eta);
+                return true;
+            }
+
+            if (car.Condition < car.RepairCap - 0.001f || car.NeedsOiling || car.HasHotbox)
+            {
+                float partsDemand = RepairTrackHelper.CalculateCarRepairPartsDemand(car);
+                if (repairBuffer is not null)
                 {
-                    carInfo.MarkReady(cargo, cQty, cCap);
-                    continue;
+                    repairBuffer.SpotDemand += partsDemand;
                 }
 
-                // Step 3: Physical Spot Repair (Unscheduled car repair on designated repair tracks)
-                if (caps.CanRepair && car != null)
-                {
-                    bool isDamaged = car.Condition < car.RepairCap;
-                    bool needsOil = car.NeedsOiling;
-                    bool hasHotbox = car.HasHotbox;
+                TimeSpan? eta = RepairTrackHelper.CalculateRepairEta(partsDemand, repairTrack);
+                carInfo.MarkRepair(partsDemand, CarStatusState.SpotRepair, "Spot Repair", car.Condition, eta);
+                return true;
+            }
 
-                    if (isDamaged || needsOil || hasHotbox)
-                    {
-                        float partsDemand = RepairTrackHelper.CalculateCarRepairPartsDemand(car);
-                        if (repairBuffer != null)
-                        {
-                            repairBuffer.SpotDemand += partsDemand;
-                        }
+            carInfo.MarkServiced(car.Condition, carInfo.OpsCar?.Waybill.HasValue == true);
+            return true;
+        }
 
-                        carInfo.MarkRepair(partsDemand, CarStatusState.SpotRepair, "Spot Repair", car.Condition);
-                        continue;
-                    }
-                }
+        private static bool TryClassifyTeamTrack(SpottedCarInfo carInfo, TeamTrack teamTrack, Industry industry)
+        {
+            IOpsCar opsCar = carInfo.OpsCar;
+            if (opsCar?.Waybill is not { } waybill || !CarTrackingHelper.IsWaybilledHere(waybill, industry, teamTrack))
+            {
+                return false;
+            }
 
-                // Step 4: Foreign Waybill (Staged on maintenance tracks vs Misspotted on commercial tracks)
-                if (opsCar.Waybill.HasValue)
+            TeamTrackProfile.Entry? matchedEntry = null;
+            foreach (TeamTrackProfile.Entry profile in teamTrack.profileEntries)
+            {
+                if (profile.tag == waybill.Tag)
                 {
-                    if (role is SpurRole.MowMaterialHandling or SpurRole.MowStaging)
-                    {
-                        carInfo.MarkPassive("Staged", cargo, cQty, cCap);
-                    }
-                    else
-                    {
-                        string destName = !string.IsNullOrEmpty(opsCar.Waybill.Value.Destination.DisplayName)
-                            ? opsCar.Waybill.Value.Destination.DisplayName
-                            : opsCar.Waybill.Value.Destination.Identifier;
-                        if (destName.Length > 20) destName = destName.Substring(0, 18) + "...";
-                        carInfo.MarkMisspotted(destName, cargo);
-                    }
-                    continue;
-                }
-
-                // Step 5: Passive Stock (Stored yard stock vs Parked commercial empties)
-                if (role is SpurRole.MowMaterialHandling or SpurRole.MowStaging)
-                {
-                    carInfo.MarkPassive("Stored", cargo, cQty, cCap);
-                }
-                else
-                {
-                    carInfo.MarkPassive("Parked", cargo, cQty, cCap);
+                    matchedEntry = profile;
+                    break;
                 }
             }
+
+            if (matchedEntry is not { load: { } ttLoad } entry)
+            {
+                return false;
+            }
+
+            (float qty, float cap) = opsCar.QuantityOfLoad(ttLoad);
+            carInfo.SetLoad(ttLoad, qty, cap);
+
+            float loadingTimeDays = Mathf.Max(0.1f, entry.loadingTime);
+            float ratePerMin = (carInfo.CapacityAmount / loadingTimeDays) / 1440f;
+            float toTransfer = entry.export ? Mathf.Max(0f, carInfo.CapacityAmount - qty) : qty;
+
+            if (toTransfer <= 0.001f)
+            {
+                carInfo.MarkReady();
+                return true;
+            }
+
+            TimeSpan? eta = ratePerMin > 0.0001f ? TimeSpan.FromMinutes(toTransfer / ratePerMin) : null;
+            carInfo.MarkTransfer(ratePerMin, eta, entry.export ? "Loading" : "Unloading");
+            return true;
         }
     }
 }

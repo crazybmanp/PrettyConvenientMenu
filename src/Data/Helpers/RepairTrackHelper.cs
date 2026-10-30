@@ -10,9 +10,15 @@ namespace PrettyConvenientMenu.Data.Helpers
     {
         public const float PoundsPerRepairUnit = 12000f;
 
+        private delegate float EffectiveRepairPerDayDelegate(RepairTrack instance, out float payRate);
+
         private static readonly Func<Car, float>? calculateRepairWorkOverall =
             AccessTools.MethodDelegate<Func<Car, float>>(
                 AccessTools.Method(typeof(RepairTrack), "CalculateRepairWorkOverall", new[] { typeof(Car) }));
+
+        private static readonly EffectiveRepairPerDayDelegate? effectiveRepairPerDayPerCar =
+            AccessTools.MethodDelegate<EffectiveRepairPerDayDelegate>(
+                AccessTools.Method(typeof(RepairTrack), "EffectiveRepairPerDayPerCar"));
 
         public static float CalculateCarRepairPartsDemand(Car? car)
         {
@@ -38,8 +44,38 @@ namespace PrettyConvenientMenu.Data.Helpers
             return 0f;
         }
 
-        public static bool IsCarInForOverhaul(Car car, RepairTrack repairTrack, OpsController opsController, int depth = 0)
+        public static TimeSpan? CalculateRepairEta(float partsDemand, RepairTrack repairTrack)
         {
+            if (partsDemand <= 0.001f || repairTrack == null || effectiveRepairPerDayPerCar == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                float repairPerDay = effectiveRepairPerDayPerCar(repairTrack, out _);
+                if (repairPerDay <= 0.0001f)
+                {
+                    return null;
+                }
+
+                float workUnits = partsDemand / PoundsPerRepairUnit;
+                return TimeSpan.FromMinutes(workUnits / repairPerDay * 1440f);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static bool TryGetProgramRepairMode(
+            Car car,
+            RepairTrack repairTrack,
+            OpsController opsController,
+            out bool isOverhaul,
+            int depth = 0)
+        {
+            isOverhaul = false;
             if (depth > 3 || ReferenceEquals(car, null) || car == null)
             {
                 return false;
@@ -47,20 +83,15 @@ namespace PrettyConvenientMenu.Data.Helpers
 
             if (car.TryGetOverrideDestination(OverrideDestination.Repair, opsController, out (OpsCarPosition position, string tag)? result)
                 && result.HasValue
-                && string.Equals(result.Value.position.Identifier, repairTrack.Identifier, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(result.Value.tag, "overhaul", StringComparison.OrdinalIgnoreCase))
+                && string.Equals(result.Value.position.Identifier, repairTrack.Identifier, StringComparison.OrdinalIgnoreCase))
             {
+                isOverhaul = string.Equals(result.Value.tag, "overhaul", StringComparison.OrdinalIgnoreCase) || car.OverhaulProgress > 0f;
                 return true;
             }
 
-            if (car.OverhaulProgress > 0f)
-            {
-                return true;
-            }
-
-            if (car.CarType.IsTender && car.TryGetAdjacentCar(car.EndToLogical(Car.End.F), out Car adjacent))
-            {
-                return IsCarInForOverhaul(adjacent, repairTrack, opsController, depth + 1);
+            if (car.CarType.IsTender && car.TryGetAdjacentCar(car.EndToLogical(Car.End.F), out Car adjacent) && adjacent != null)
+            { //TODO: is it correct that tenders inherit the overhaul status of the locomotive, or will they be in for repair?
+                return TryGetProgramRepairMode(adjacent, repairTrack, opsController, out isOverhaul, depth + 1);
             }
 
             return false;

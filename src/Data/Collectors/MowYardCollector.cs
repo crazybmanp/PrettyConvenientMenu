@@ -1,12 +1,8 @@
 using System.Collections.Generic;
-using Model;
 using Model.Ops;
-using Model.Ops.Definition;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.Helpers;
-using PrettyConvenientMenu.Data.RollingStock;
-using PrettyConvenientMenu.Data.Spurs;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Collectors
@@ -62,111 +58,6 @@ namespace PrettyConvenientMenu.Data.Collectors
                         }
                     }
                 }
-            }
-        }
-
-        public void ScanEnRouteTraffic(Industry industry, IndustrySnapshot snapshot)
-        {
-            List<IndustryComponent>? components = industry.Components;
-            if (components == null || TrainController.Shared == null) return;
-
-            OpsController? opsController = OpsController.Shared;
-            if (opsController == null) return;
-
-            StorageLoader? storageLoader = null;
-            StorageUnloader? storageUnloader = null;
-            foreach (IndustryComponent comp in components)
-            {
-                if (comp is StorageLoader sl) storageLoader = sl;
-                else if (comp is StorageUnloader su) storageUnloader = su;
-            }
-
-            HashSet<string> spottedCarIds = new HashSet<string>(16);
-            foreach (SpurCarGroup group in snapshot.SpurGroups)
-            {
-                foreach (SpottedCarInfo carInfo in group.Cars)
-                {
-                    spottedCarIds.Add(carInfo.ReportingMark);
-                    if (carInfo.CarId is { } id) spottedCarIds.Add(id);
-                }
-            }
-
-            // En-route cars are discovered on active trains in transit across the world map.
-            // Unlike spotted cars (which are discovered and bulk-created by SpurClassifier on physical tracks),
-            // arriving en-route cars are instantiated individually here for the "En Route (Arriving)" display group.
-            SpurCarGroup? enRouteGroup = null;
-
-            foreach (Car car in TrainController.Shared.Cars)
-            {
-                if (car == null || spottedCarIds.Contains(car.id) || (car.DisplayName is { } name && spottedCarIds.Contains(name)))
-                {
-                    continue;
-                }
-
-                IOpsCar? opsCar = opsController.CachedOpsCar(car);
-                if (opsCar?.Waybill is not { } waybill) continue;
-
-                // Arriving work car heading here to load material
-                if (storageLoader != null && CarTrackingHelper.IsWaybilledHere(waybill, industry, storageLoader))
-                {
-                    Load? targetLoad = !string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null;
-                    if (targetLoad == null) continue;
-                    (float q, float c) = opsCar.QuantityOfLoad(targetLoad);
-                    float toFill = Mathf.Max(0f, c - q);
-
-                    foreach (BufferInfo b in snapshot.Buffers)
-                    {
-                        if (b.CargoType == targetLoad.id)
-                        {
-                            b.CommittedOutbound += toFill;
-                            break;
-                        }
-                    }
-
-                    if (enRouteGroup == null)
-                    {
-                        enRouteGroup = new SpurCarGroup
-                        {
-                            TrackName = "En Route (Arriving)",
-                            Role = SpurRole.EnRouteWaybill
-                        };
-                    }
-
-                    enRouteGroup.Cars.Add(SpottedCarInfo.CreateEnRoute(car, opsCar, targetLoad, q, c));
-                    spottedCarIds.Add(car.id);
-                }
-                // Arriving delivery car heading here to unload material
-                else if (storageUnloader != null && CarTrackingHelper.IsWaybilledHere(waybill, industry, storageUnloader))
-                {
-                    (Load? actualLoad, float actualQty, float actualCap) = CarTrackingHelper.GetCarCargo(car, opsCar);
-                    if (actualLoad == null) continue;
-
-                    foreach (BufferInfo b in snapshot.Buffers)
-                    {
-                        if (b.CargoType == actualLoad.id)
-                        {
-                            b.ScheduledInbound += actualQty;
-                            break;
-                        }
-                    }
-
-                    if (enRouteGroup == null)
-                    {
-                        enRouteGroup = new SpurCarGroup
-                        {
-                            TrackName = "En Route (Arriving)",
-                            Role = SpurRole.EnRouteWaybill
-                        };
-                    }
-
-                    enRouteGroup.Cars.Add(SpottedCarInfo.CreateEnRoute(car, opsCar, actualLoad, actualQty, actualCap));
-                    spottedCarIds.Add(car.id);
-                }
-            }
-
-            if (enRouteGroup != null && enRouteGroup.Cars.Count > 0)
-            {
-                snapshot.SpurGroups.Add(enRouteGroup);
             }
         }
 

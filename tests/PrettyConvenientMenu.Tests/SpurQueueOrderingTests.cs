@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using NUnit.Framework;
-using PrettyConvenientMenu.Data;
+using PrettyConvenientMenu.Data.Helpers;
 using PrettyConvenientMenu.Data.RollingStock;
 
 namespace PrettyConvenientMenu.Tests

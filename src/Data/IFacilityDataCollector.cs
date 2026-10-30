@@ -22,11 +22,6 @@ namespace PrettyConvenientMenu.Data
         void PopulateBuffers(Industry industry, IndustrySnapshot snapshot);
 
         /// <summary>
-        /// Scans trains in transit across the route for cars waybilled or directed toward this facility, updating scheduled buffer quantities.
-        /// </summary>
-        void ScanEnRouteTraffic(Industry industry, IndustrySnapshot snapshot);
-
-        /// <summary>
         /// Evaluates overall facility health (starved, blocked, running, or idle) and generates user diagnostics based on populated buffer and car states.
         /// </summary>
         void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot);

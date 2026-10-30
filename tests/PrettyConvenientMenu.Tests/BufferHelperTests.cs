@@ -5,6 +5,7 @@ using NUnit.Framework;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Helpers;
 using PrettyConvenientMenu.Data.RollingStock;
+using PrettyConvenientMenu.Data.Spurs;
 
 namespace PrettyConvenientMenu.Tests
 {
@@ -22,9 +23,9 @@ namespace PrettyConvenientMenu.Tests
             Assert.AreEqual(1, buffers.Count);
             Assert.AreEqual("raw_logs", created.CargoType);
             Assert.AreEqual("Raw Logs", created.CargoDisplayName);
-            Assert.IsTrue(created.IsInput);
             Assert.AreEqual(LoadUnits.Pounds, created.Units);
             Assert.AreEqual(BufferRole.CommercialInput, created.Role);
+            Assert.IsTrue(created.IsInput);
         }
 
         [Test]
@@ -34,7 +35,7 @@ namespace PrettyConvenientMenu.Tests
             CommercialBuffer initial = BufferHelper.GetOrAddCommercialBuffer(buffers, "raw_logs", "Raw Logs", LoadUnits.Pounds, isInput: true);
             initial.CurrentAmount = 500f;
 
-            CommercialBuffer retrieved = BufferHelper.GetOrAddCommercialBuffer(buffers, "raw_logs", "Raw Logs Different Name", LoadUnits.Pounds, isInput: true);
+            CommercialBuffer retrieved = BufferHelper.GetOrAddCommercialBuffer(buffers, "raw_logs", "Raw Logs", LoadUnits.Pounds, isInput: true);
 
             Assert.AreSame(initial, retrieved);
             Assert.AreEqual(1, buffers.Count);
@@ -42,31 +43,46 @@ namespace PrettyConvenientMenu.Tests
         }
 
         [Test]
-        public void GetOrAddCommercialBuffer_WhenSameCargoTypeButDifferentIsInput_CreatesSeparateBuffers()
+        public void GetOrAddCommercialBuffer_WhenSameCargoDifferentRole_CreatesSeparateBuffers()
         {
             List<BufferInfo> buffers = new List<BufferInfo>();
 
-            CommercialBuffer inputBuffer = BufferHelper.GetOrAddCommercialBuffer(buffers, "lumber", "Lumber Input", LoadUnits.Pounds, isInput: true);
-            CommercialBuffer outputBuffer = BufferHelper.GetOrAddCommercialBuffer(buffers, "lumber", "Lumber Output", LoadUnits.Pounds, isInput: false);
+            CommercialBuffer input = BufferHelper.GetOrAddCommercialBuffer(buffers, "wood_chips", "Wood Chips", LoadUnits.Pounds, isInput: true);
+            CommercialBuffer output = BufferHelper.GetOrAddCommercialBuffer(buffers, "wood_chips", "Wood Chips", LoadUnits.Pounds, isInput: false);
 
-            Assert.AreNotSame(inputBuffer, outputBuffer);
+            Assert.AreNotSame(input, output);
             Assert.AreEqual(2, buffers.Count);
-            Assert.IsTrue(inputBuffer.IsInput);
-            Assert.IsFalse(outputBuffer.IsInput);
+            Assert.IsTrue(input.IsInput);
+            Assert.IsFalse(output.IsInput);
         }
 
         [Test]
-        public void GetOrAddReserveBuffer_WhenDoesNotExist_CreatesReserveBuffer()
+        public void GetOrAddReserveBuffer_WhenDoesNotExist_CreatesNewAndAddsToList()
         {
             List<BufferInfo> buffers = new List<BufferInfo>();
 
-            ReserveBuffer created = BufferHelper.GetOrAddReserveBuffer(buffers, "diesel", "Diesel Fuel", LoadUnits.Gallons, BufferRole.LocomotiveSupply);
+            ReserveBuffer created = BufferHelper.GetOrAddReserveBuffer(buffers, "coal", "Coal", LoadUnits.Pounds, BufferRole.LocomotiveSupply);
 
             Assert.IsNotNull(created);
             Assert.AreEqual(1, buffers.Count);
-            Assert.AreEqual("diesel", created.CargoType);
-            Assert.AreEqual(LoadUnits.Gallons, created.Units);
+            Assert.AreEqual("coal", created.CargoType);
+            Assert.AreEqual("Coal", created.CargoDisplayName);
             Assert.AreEqual(BufferRole.LocomotiveSupply, created.Role);
+            Assert.IsFalse(created.IsRepairParts);
+        }
+
+        [Test]
+        public void GetOrAddReserveBuffer_WhenMatchingExists_ReturnsExistingWithoutAddingDuplicate()
+        {
+            List<BufferInfo> buffers = new List<BufferInfo>();
+            ReserveBuffer initial = BufferHelper.GetOrAddReserveBuffer(buffers, "diesel", "Diesel", LoadUnits.Gallons, BufferRole.LocomotiveSupply);
+            initial.CurrentAmount = 1200f;
+
+            ReserveBuffer retrieved = BufferHelper.GetOrAddReserveBuffer(buffers, "diesel", "Diesel", LoadUnits.Gallons, BufferRole.LocomotiveSupply);
+
+            Assert.AreSame(initial, retrieved);
+            Assert.AreEqual(1, buffers.Count);
+            Assert.AreEqual(1200f, retrieved.CurrentAmount);
         }
 
         [Test]

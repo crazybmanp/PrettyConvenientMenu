@@ -1,10 +1,7 @@
 using System;
-using System.Collections.Generic;
 using Model;
 using Model.Ops;
 using Model.Ops.Definition;
-using PrettyConvenientMenu.Data.Facilities;
-using PrettyConvenientMenu.Data.RollingStock;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Helpers
@@ -71,153 +68,50 @@ namespace PrettyConvenientMenu.Data.Helpers
             return false;
         }
 
-        public static void CollectTeamTrackCars(
-            OpsController opsController,
-            TeamTrack teamTrack,
-            IndustryComponent component,
-            Industry industry,
-            IndustrySnapshot snapshot)
+        public static bool IsWaybilledFromHere(Waybill? waybill, Industry? industry)
         {
-            string trackName = component.ShortName(industry) ?? "House Track";
-            SpurRole role = snapshot.FacilityType == IndustryFacilityType.Depot
-                ? SpurRole.DepotHouseTrack
-                : SpurRole.TeamTrack;
-            SpurCarGroup spurGroup = BufferHelper.GetOrAddSpurGroup(snapshot.SpurGroups, trackName, role);
-
-            IEnumerable<Car>? cars = opsController.CarsAtPosition(teamTrack);
-            if (cars == null)
+            if (!waybill.HasValue || industry == null || string.IsNullOrEmpty(industry.identifier))
             {
-                return;
+                return false;
             }
 
-            foreach (Car car in cars)
+            return waybill.Value.Origin.HasValue
+                && !string.IsNullOrEmpty(waybill.Value.Origin.Value.Identifier)
+                && waybill.Value.Origin.Value.Identifier.StartsWith(industry.identifier, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsCarCompletedAt(
+            IOpsCar? opsCar,
+            Industry? industry,
+            IndustryComponent? component,
+            Load? cargo,
+            bool isInbound)
+        {
+            if (opsCar == null || industry == null || component == null)
             {
-                if (car == null || Mathf.Abs(car.velocity) > 0.05f)
-                {
-                    continue;
-                }
+                return false;
+            }
 
-                IOpsCar? opsCar = opsController.CachedOpsCar(car);
-                if (opsCar == null || opsCar.Waybill is not { } waybill)
-                {
-                    continue;
-                }
+            if (opsCar.Waybill is not { } waybill)
+            {
+                return false;
+            }
 
-                if (!IsWaybilledHere(waybill, industry, component))
-                {
-                    continue;
-                }
+            if (!IsWaybilledHere(waybill, industry, component))
+            {
+                return false;
+            }
 
-                TeamTrackProfile.Entry? matchedEntry = null;
-                for (int p = 0; p < teamTrack.profileEntries.Count; p++)
-                {
-                    if (teamTrack.profileEntries[p].tag == waybill.Tag)
-                    {
-                        matchedEntry = teamTrack.profileEntries[p];
-                        break;
-                    }
-                }
+            (float qty, float cap) = cargo != null ? opsCar.QuantityOfLoad(cargo) : (0f, 0f);
+            float zeroThreshold = cargo?.ZeroThreshold ?? 0.001f;
 
-                if (!matchedEntry.HasValue || matchedEntry.Value.load is not { } ttLoad)
-                {
-                    continue;
-                }
-
-                (float qty, float cap) = opsCar.QuantityOfLoad(ttLoad);
-                float loadingTimeDays = Mathf.Max(0.1f, matchedEntry.Value.loadingTime);
-                float ratePerDay = cap / loadingTimeDays;
-                float ratePerMin = ratePerDay / 1440f;
-                bool isExport = matchedEntry.Value.export;
-
-                if (isExport)
-                {
-                    float toFill = Mathf.Max(0f, cap - qty);
-                    TimeSpan? eta = null;
-                    if (ratePerMin > 0.0001f && toFill > 0.001f)
-                    {
-                        float minutes = toFill / ratePerMin;
-                        eta = TimeSpan.FromMinutes(minutes);
-                    }
-
-                    CarStatusState statusState;
-                    string statusDetail;
-                    if (toFill <= 0.001f)
-                    {
-                        statusState = CarStatusState.Completed;
-                        statusDetail = "Completed";
-                    }
-                    else if (ratePerMin > 0.0001f && toFill > 0.001f)
-                    {
-                        statusState = CarStatusState.ActiveTransfer;
-                        statusDetail = "Loading";
-                    }
-                    else
-                    {
-                        statusState = CarStatusState.Idle;
-                        statusDetail = "Idle";
-                    }
-
-                    SpottedCarInfo carInfo = new SpottedCarInfo
-                    {
-                        CarId = car.id,
-                        ReportingMark = opsCar.DisplayName ?? opsCar.Id ?? string.Empty,
-                        CarType = opsCar.CarType ?? "Car",
-                        TrackName = trackName,
-                        CargoName = ttLoad.description ?? "Cargo",
-                        Units = ttLoad.units,
-                        CurrentAmount = qty,
-                        CapacityAmount = cap,
-                        TransferRatePerMinute = ratePerMin,
-                        EstimatedTimeToCompletion = eta,
-                        StatusState = statusState,
-                        StatusDetail = statusDetail
-                    };
-                    spurGroup.Cars.Add(carInfo);
-                }
-                else
-                {
-                    TimeSpan? eta = null;
-                    if (ratePerMin > 0.0001f && qty > 0.001f)
-                    {
-                        float minutes = qty / ratePerMin;
-                        eta = TimeSpan.FromMinutes(minutes);
-                    }
-
-                    CarStatusState statusState;
-                    string statusDetail;
-                    if (qty <= 0.001f)
-                    {
-                        statusState = CarStatusState.Completed;
-                        statusDetail = "Completed";
-                    }
-                    else if (ratePerMin > 0.0001f && qty > 0.001f)
-                    {
-                        statusState = CarStatusState.ActiveTransfer;
-                        statusDetail = "Unloading";
-                    }
-                    else
-                    {
-                        statusState = CarStatusState.Idle;
-                        statusDetail = "Idle";
-                    }
-
-                    SpottedCarInfo carInfo = new SpottedCarInfo
-                    {
-                        CarId = car.id,
-                        ReportingMark = opsCar.DisplayName ?? opsCar.Id ?? string.Empty,
-                        CarType = opsCar.CarType ?? "Car",
-                        TrackName = trackName,
-                        CargoName = ttLoad.description ?? "Cargo",
-                        Units = ttLoad.units,
-                        CurrentAmount = qty,
-                        CapacityAmount = cap,
-                        TransferRatePerMinute = ratePerMin,
-                        EstimatedTimeToCompletion = eta,
-                        StatusState = statusState,
-                        StatusDetail = statusDetail
-                    };
-                    spurGroup.Cars.Add(carInfo);
-                }
+            if (isInbound)
+            {
+                return qty <= zeroThreshold;
+            }
+            else
+            {
+                return cap > zeroThreshold && Mathf.Max(0f, cap - qty) <= zeroThreshold;
             }
         }
     }

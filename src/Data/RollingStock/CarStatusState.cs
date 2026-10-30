@@ -5,6 +5,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
     /// </summary>
     public enum CarStatusState
     {
+        Unassigned = 0,
         EnRoute,
         ActiveTransfer,
         Queued,

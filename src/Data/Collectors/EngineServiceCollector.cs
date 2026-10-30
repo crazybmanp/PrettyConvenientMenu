@@ -6,6 +6,7 @@ using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.Helpers;
 using PrettyConvenientMenu.Data.RollingStock;
+using PrettyConvenientMenu.Data.Spurs;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Collectors
@@ -14,38 +15,32 @@ namespace PrettyConvenientMenu.Data.Collectors
     {
         public IndustryFacilityType FacilityType => IndustryFacilityType.EngineService;
 
-        public void Collect(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateFacilityMetadata(Industry industry, IndustrySnapshot snapshot)
         {
             snapshot.CurrentTier = 0;
             snapshot.TierDescription = "Locomotive Service Facility";
             snapshot.State = ProductionState.Running;
             snapshot.StatusMessage = "Terminal reserves ready for locomotive fueling, servicing, and repair.";
             snapshot.DiagnosticAlert = string.Empty;
+        }
 
+        public void PopulateBuffers(Industry industry, IndustrySnapshot snapshot)
+        {
             List<IndustryComponent>? components = industry.Components;
-            if (components == null)
-            {
-                return;
-            }
+            if (components == null) return;
 
-            OpsController? opsController = OpsController.Shared;
-            HashSet<string> spottedCarIds = new HashSet<string>(16);
-
-            RepairTrack? repairTrackComponent = null;
-            for (int i = 0; i < components.Count; i++)
+            RepairTrack? repairTrack = null;
+            foreach (IndustryComponent comp in components)
             {
-                if (components[i] is RepairTrack rt)
+                if (comp is RepairTrack rt)
                 {
-                    repairTrackComponent = rt;
+                    repairTrack = rt;
                     break;
                 }
             }
 
-            // 1. Process supply unloaders first to establish terminal supply buffers
-            for (int i = 0; i < components.Count; i++)
+            foreach (IndustryComponent component in components)
             {
-                IndustryComponent component = components[i];
-
                 if (component is IndustryUnloader unloader && unloader.load is { } load)
                 {
                     string? prefix = !unloader.sharedStorage ? unloader.subIdentifier : null;
@@ -53,128 +48,98 @@ namespace PrettyConvenientMenu.Data.Collectors
                         ? industry.Storage.QuantityInStorage(load, prefix)
                         : 0f;
 
-                    ReserveBuffer buf = BufferHelper.GetOrAddReserveBuffer(snapshot.Buffers, load, BufferRole.LocomotiveSupply);
-                    buf.CurrentAmount = currentStock;
-                    buf.MaxCapacity = Mathf.Max(0.001f, unloader.maxStorage);
+                    bool isRepairParts = repairTrack != null &&
+                        (string.Equals(load.id, repairTrack.repairPartsLoadId, StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(unloader.ShortName(industry), repairTrack.ShortName(industry), StringComparison.OrdinalIgnoreCase));
 
-                    float bufferAvailable = Mathf.Max(0f, unloader.maxStorage - currentStock);
-                    float nominalRatePerDay = unloader.carUnloadRate;
-                    float nominalRatePerMin = nominalRatePerDay / 1440f;
+                    BufferRole role = isRepairParts ? BufferRole.MaintenanceReserve : BufferRole.LocomotiveSupply;
 
-                    bool isRepairTrackUnloader = repairTrackComponent != null &&
-                        (string.Equals(load.id, repairTrackComponent.repairPartsLoadId, StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(unloader.ShortName(industry), repairTrackComponent.ShortName(industry), StringComparison.OrdinalIgnoreCase));
-                    if (isRepairTrackUnloader)
-                    {
-                        buf.IsRepairParts = true;
-                    }
-                    SpurRole? roleOverride = isRepairTrackUnloader ? SpurRole.LocomotiveRepair : null;
+                    ReserveBuffer buffer = BufferHelper.GetOrAddReserveBuffer(snapshot.Buffers, load, role);
+                    buffer.CurrentAmount = currentStock;
+                    buffer.MaxCapacity = Mathf.Max(0.001f, unloader.maxStorage);
+                    buffer.IsRepairParts = isRepairParts;
+                }
+            }
+        }
 
-                    SpurCarProgressionHelper.CollectCarsForSpur(opsController, unloader, load, component, industry, bufferAvailable, nominalRatePerMin, true, snapshot, roleOverride);
+        public void ScanEnRouteTraffic(Industry industry, IndustrySnapshot snapshot)
+        {
+            List<IndustryComponent>? components = industry.Components;
+            if (components == null || TrainController.Shared == null) return;
+
+            OpsController? opsController = OpsController.Shared;
+            if (opsController == null) return;
+
+            HashSet<string> spottedCarIds = new HashSet<string>(16);
+            foreach (SpurCarGroup group in snapshot.SpurGroups)
+            {
+                foreach (SpottedCarInfo carInfo in group.Cars)
+                {
+                    spottedCarIds.Add(carInfo.ReportingMark);
+                    if (carInfo.CarId is { } id) spottedCarIds.Add(id);
                 }
             }
 
-            // Track all cars spotted on supply tracks so en-route scanners ignore them
-            for (int g = 0; g < snapshot.SpurGroups.Count; g++)
+            // En-route cars are discovered on active trains in transit across the world map.
+            // Unlike spotted cars (which are discovered and bulk-created by SpurClassifier on physical tracks),
+            // arriving en-route cars are instantiated individually here for the "En Route (Arriving)" display group.
+            SpurCarGroup? enRouteGroup = null;
+
+            foreach (Car car in TrainController.Shared.Cars)
             {
-                SpurCarGroup group = snapshot.SpurGroups[g];
-                for (int c = 0; c < group.Cars.Count; c++)
+                if (ReferenceEquals(car, null) || car == null ||
+                    (car.DisplayName is { } carName && spottedCarIds.Contains(carName)) ||
+                    (car.id is { } carIdentifier && spottedCarIds.Contains(carIdentifier)))
                 {
-                    spottedCarIds.Add(group.Cars[c].ReportingMark);
+                    continue;
                 }
-            }
 
-            // 2. Process repair tracks, spotted equipment, and arriving repair/overhaul traffic
-            if (opsController != null)
-            {
-                for (int i = 0; i < components.Count; i++)
+                IOpsCar? opsCar = opsController.CachedOpsCar(car);
+                if (opsCar?.Waybill is not { } waybill) continue;
+
+                foreach (IndustryComponent component in components)
                 {
-                    if (components[i] is RepairTrack repairTrack)
+                    if (component is IndustryUnloader unloader && unloader.load is { } load && CarTrackingHelper.IsWaybilledHere(waybill, industry, unloader))
                     {
-                        RepairTrackHelper.CollectRepairTrackCars(opsController, repairTrack, industry, snapshot, spottedCarIds);
-                    }
-                }
-            }
+                        (float qty, float cap) = opsCar.QuantityOfLoad(load);
 
-            // 3. Scan for arriving fuel/supply cars en route across the map
-            if (TrainController.Shared != null && opsController != null)
-            {
-                SpurCarGroup enRouteGroup = new SpurCarGroup
-                {
-                    TrackName = "En Route (Arriving)",
-                    Role = SpurRole.EnRouteWaybill
-                };
-
-                foreach (Car car in TrainController.Shared.Cars)
-                {
-                    if (ReferenceEquals(car, null) || car == null ||
-                        (car.DisplayName is { } carName && spottedCarIds.Contains(carName)) ||
-                        (car.id is { } carIdentifier && spottedCarIds.Contains(carIdentifier)))
-                    {
-                        continue;
-                    }
-
-                    IOpsCar? opsCar = opsController.CachedOpsCar(car);
-                    if (opsCar?.Waybill is not { } waybill)
-                    {
-                        continue;
-                    }
-
-                    for (int i = 0; i < components.Count; i++)
-                    {
-                        if (components[i] is IndustryUnloader unloader && unloader.load is { } load && CarTrackingHelper.IsWaybilledHere(waybill, industry, unloader))
+                        foreach (BufferInfo buffer in snapshot.Buffers)
                         {
-                            (float qty, float cap) = opsCar.QuantityOfLoad(load);
-
-                            for (int b = 0; b < snapshot.Buffers.Count; b++)
+                            if (buffer.CargoType == load.id)
                             {
-                                if (snapshot.Buffers[b].CargoType == load.id)
-                                {
-                                    snapshot.Buffers[b].ScheduledInbound += qty;
-                                    break;
-                                }
+                                buffer.ScheduledInbound += qty;
+                                break;
                             }
-
-                            SpottedCarInfo carInfo = new SpottedCarInfo
-                            {
-                                CarId = car.id,
-                                ReportingMark = opsCar?.DisplayName ?? car.DisplayName ?? string.Empty,
-                                CarType = opsCar?.CarType ?? car.Definition?.CarType ?? "Car",
-                                TrackName = "En Route",
-                                CargoName = load.description ?? "Supply",
-                                Units = load.units,
-                                CurrentAmount = qty,
-                                CapacityAmount = cap,
-                                TransferRatePerMinute = 0f,
-                                EstimatedTimeToCompletion = null,
-                                StatusState = CarStatusState.EnRoute,
-                                StatusDetail = "En Route"
-                            };
-
-                            enRouteGroup.Cars.Add(carInfo);
-                            if (car.DisplayName is { } name) spottedCarIds.Add(name);
-                            if (car.id is { } id) spottedCarIds.Add(id);
-                            break;
                         }
+
+                        if (enRouteGroup is null)
+                        {
+                            enRouteGroup = new SpurCarGroup
+                            {
+                                TrackName = "En Route (Arriving)",
+                                Role = SpurRole.EnRouteWaybill
+                            };
+                        }
+
+                        enRouteGroup.Cars.Add(SpottedCarInfo.CreateEnRoute(car, opsCar, load, qty, cap));
+                        if (car.DisplayName is { } name) spottedCarIds.Add(name);
+                        if (car.id is { } id) spottedCarIds.Add(id);
+                        break;
                     }
                 }
-
-                if (enRouteGroup.Cars.Count > 0)
-                {
-                    snapshot.SpurGroups.Add(enRouteGroup);
-                }
             }
 
-            // 4. Alert on empty terminal supplies
-            for (int b = 0; b < snapshot.Buffers.Count; b++)
+            if (enRouteGroup is { Cars: { Count: > 0 } })
             {
-                BufferInfo buf = snapshot.Buffers[b];
-                if (buf.CurrentAmount <= 0.001f)
-                {
-                    snapshot.DiagnosticAlert = $"{buf.CargoDisplayName} reserve depleted. Spot supply cars to replenish terminal.";
-                    break;
-                }
+                snapshot.SpurGroups.Add(enRouteGroup);
             }
+        }
+
+        public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
+        {
+            // Engine terminals are servicing depots with optional supplies (e.g. diesel, coal, sand, repair parts).
+            // Empty reserves are normal operational state (e.g. running an all-steam roster) and do not halt operations.
+            snapshot.DiagnosticAlert = string.Empty;
         }
     }
 }

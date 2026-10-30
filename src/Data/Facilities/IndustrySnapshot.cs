@@ -45,5 +45,13 @@ namespace PrettyConvenientMenu.Data.Facilities
             Buffers.Clear();
             SpurGroups.Clear();
         }
+
+        public void Reset(Model.Ops.Industry industry, IndustryFacilityType facilityType)
+        {
+            Clear();
+            IndustryId = industry.identifier;
+            DisplayName = industry.DisplayName;
+            FacilityType = facilityType;
+        }
     }
 }

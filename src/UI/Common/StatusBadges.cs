@@ -1,6 +1,7 @@
 using System;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.RollingStock;
+using PrettyConvenientMenu.Data.Spurs;
 
 namespace PrettyConvenientMenu.UI.Common
 {
@@ -29,12 +30,12 @@ namespace PrettyConvenientMenu.UI.Common
             CarStatusState.EnRoute => "#4DD0E1",
             CarStatusState.ActiveTransfer => "#4CAF50",
             CarStatusState.Completed or CarStatusState.Serviced => "#81C784",
-            CarStatusState.Blocked => "#FFA726",
-            CarStatusState.WrongDestination or CarStatusState.Idle => "#9E9E9E",
+            CarStatusState.Blocked => "#EF5350",
+            CarStatusState.WrongDestination or CarStatusState.Idle or CarStatusState.Unassigned => "#9E9E9E",
             CarStatusState.Queued => "#B0BEC5",
             CarStatusState.ProgramOverhaul or CarStatusState.ProgramRepair => "#FF9800",
             CarStatusState.SpotRepair => "#4DD0E1",
-            _ => throw new ArgumentOutOfRangeException(nameof(car.StatusState), car.StatusState, null)
+            _ => "#9E9E9E"
         };
 
         public static (string direction, string headerColor) GetSpurGroupStyle(IndustryFacilityType facilityType, SpurCarGroup group) => group.Role switch
@@ -46,9 +47,11 @@ namespace PrettyConvenientMenu.UI.Common
             SpurRole.LocomotiveRepair => ("Service & Repair Track", "#B0BEC5"),
             SpurRole.LocomotiveFueling => ("Inbound — Fuel & Supply Servicing", "#90CAF9"),
             SpurRole.MowStaging => ("Work Equipment & Staging Track", "#FFA726"),
-            SpurRole.MowMaterialHandling => ("MOW Material Transfer Track", "#FFA726"),
+            SpurRole.MowMaterialHandling => ("Material Transfer Track", "#FFA726"),
             SpurRole.CommercialInbound => ("Inbound — Unloading", "#90CAF9"),
             SpurRole.CommercialOutbound => ("Outbound — Loading", "#A5D6A7"),
+            SpurRole.CommercialDual => ("Dual — Inbound & Outbound", "#80CBC4"),
+            SpurRole.Unknown => ("<color=#FF5252>[UNKNOWN SPUR]</color>", "#FF5252"),
             _ => throw new ArgumentOutOfRangeException(nameof(group.Role), group.Role, null)
         };
     }

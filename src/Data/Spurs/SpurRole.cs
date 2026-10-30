@@ -1,4 +1,4 @@
-namespace PrettyConvenientMenu.Data.RollingStock
+namespace PrettyConvenientMenu.Data.Spurs
 {
     /// <summary>
     /// Explicit operational purpose of a spur track or rolling stock grouping.
@@ -7,6 +7,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
     {
         CommercialInbound,
         CommercialOutbound,
+        CommercialDual,
         LocomotiveFueling,
         LocomotiveRepair,
         MowStaging,
@@ -14,6 +15,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         DepotHouseTrack,
         TeamTrack,
         EnRouteWaybill,
-        EnRouteRepair
+        EnRouteRepair,
+        Unknown
     }
 }

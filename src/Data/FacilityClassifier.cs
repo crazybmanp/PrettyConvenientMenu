@@ -87,24 +87,6 @@ namespace PrettyConvenientMenu.Data
                 }
             }
 
-            // Fallback: strictly scoped substring heuristics
-            string id = (industry.identifier ?? string.Empty).ToLowerInvariant();
-
-            if (id.Contains("mow") || id.Contains("maintenance"))
-            {
-                return IndustryFacilityType.MaintenanceOfWay;
-            }
-
-            if (id.Contains("engine") || id.Contains("roundhouse") || id.Contains("diesel") || id.Contains("coaling"))
-            {
-                return IndustryFacilityType.EngineService;
-            }
-
-            if (id.Contains("depot") || id.Contains("station") || id.Contains("passenger"))
-            {
-                return IndustryFacilityType.Depot;
-            }
-
             return IndustryFacilityType.CommercialFreight;
         }
     }

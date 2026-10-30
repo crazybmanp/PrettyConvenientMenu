@@ -1,12 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Model;
-using Model.Definition.Data;
 using Model.Ops;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.Helpers;
-using PrettyConvenientMenu.Data.RollingStock;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Collectors
@@ -15,9 +12,8 @@ namespace PrettyConvenientMenu.Data.Collectors
     {
         public IndustryFacilityType FacilityType => IndustryFacilityType.CommercialFreight;
 
-        public void Collect(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateFacilityMetadata(Industry industry, IndustrySnapshot snapshot)
         {
-            float contractMultiplier = industry.GetContractMultiplier();
             if (industry.TryGetActiveContract(out Contract contract))
             {
                 snapshot.CurrentTier = contract.Tier;
@@ -28,22 +24,14 @@ namespace PrettyConvenientMenu.Data.Collectors
                 snapshot.CurrentTier = 0;
                 snapshot.TierDescription = industry.usesContract ? "No Active Contract" : "Non-Contracted Industry";
             }
+        }
 
-            int totalInputCount = 0;
-            int starvedInputCount = 0;
-            string starvedInputCargo = string.Empty;
-
-            int totalOutputCount = 0;
-            int blockedOutputCount = 0;
-            string blockedOutputCargo = string.Empty;
-
+        public void PopulateBuffers(Industry industry, IndustrySnapshot snapshot)
+        {
             List<IndustryComponent>? components = industry.Components;
-            if (components == null)
-            {
-                return;
-            }
+            if (components == null) return;
 
-            OpsController? opsController = OpsController.Shared;
+            float contractMultiplier = industry.GetContractMultiplier();
 
             // 1. Process Formulaic Components (Inputs & Outputs)
             foreach (IndustryComponent c in components)
@@ -55,10 +43,7 @@ namespace PrettyConvenientMenu.Data.Collectors
                     // Inputs
                     foreach (FormulaicIndustryComponent.Term term in formulaic.inputTerms)
                     {
-                        if (term.load is not { } inLoad)
-                        {
-                            continue;
-                        }
+                        if (term.load is not { } inLoad) continue;
 
                         float dailyRate = term.unitsPerDay * contractMultiplier;
                         float currentStock = industry.Storage?.QuantityInStorage(inLoad, formulaPrefix) ?? 0f;
@@ -78,22 +63,12 @@ namespace PrettyConvenientMenu.Data.Collectors
                         {
                             buf.RunwayDuration = null;
                         }
-
-                        totalInputCount++;
-                        if (currentStock <= inLoad.ZeroThreshold && dailyRate > 0.001f)
-                        {
-                            starvedInputCount++;
-                            starvedInputCargo = inLoad.description ?? "Input";
-                        }
                     }
 
                     // Outputs
                     foreach (FormulaicIndustryComponent.Term term in formulaic.outputTerms)
                     {
-                        if (term.load is not { } outLoad)
-                        {
-                            continue;
-                        }
+                        if (term.load is not { } outLoad) continue;
 
                         float dailyRate = term.unitsPerDay * contractMultiplier;
                         float currentStock = industry.Storage?.QuantityInStorage(outLoad, formulaPrefix) ?? 0f;
@@ -114,27 +89,17 @@ namespace PrettyConvenientMenu.Data.Collectors
                         {
                             buf.RunwayDuration = null;
                         }
-
-                        totalOutputCount++;
-                        if (remainingCapacity <= outLoad.ZeroThreshold && dailyRate > 0.001f)
-                        {
-                            blockedOutputCount++;
-                            blockedOutputCargo = outLoad.description ?? "Output";
-                        }
                     }
                 }
             }
 
-            // 2. Process Spurs & Spotted Cars
+            // 2. Process Buffers for Non-Formulaic Unloaders/Loaders
             foreach (IndustryComponent component in components)
             {
                 if (component is IndustryUnloader { load: { } inLoad } unloader)
                 {
                     string? formulaPrefix = !unloader.sharedStorage ? unloader.subIdentifier : null;
                     float currentStock = industry.Storage?.QuantityInStorage(inLoad, formulaPrefix) ?? 0f;
-                    float bufferAvailable = Mathf.Max(0f, unloader.maxStorage - currentStock);
-                    float nominalRatePerDay = unloader.carUnloadRate * contractMultiplier;
-                    float nominalRatePerMin = nominalRatePerDay / 1440f;
 
                     CommercialBuffer buf = BufferHelper.GetOrAddCommercialBuffer(snapshot.Buffers, inLoad, true);
                     if (buf.MaxCapacity <= 0.001f)
@@ -152,22 +117,13 @@ namespace PrettyConvenientMenu.Data.Collectors
                         {
                             buf.RunwayDuration = null;
                         }
-                        totalInputCount++;
-                        if (currentStock <= inLoad.ZeroThreshold && dailyRate > 0.001f)
-                        {
-                            starvedInputCount++;
-                            starvedInputCargo = inLoad.description ?? "Input";
-                        }
                     }
-                    SpurCarProgressionHelper.CollectCarsForSpur(opsController, unloader, inLoad, component, industry, bufferAvailable, nominalRatePerMin, true, snapshot);
                 }
 
                 if (component is IndustryLoader { load: { } outLoad } loader)
                 {
                     string? formulaPrefix = !loader.sharedStorage ? loader.subIdentifier : null;
                     float currentStock = industry.Storage?.QuantityInStorage(outLoad, formulaPrefix) ?? 0f;
-                    float nominalRatePerDay = loader.carLoadRate * contractMultiplier;
-                    float nominalRatePerMin = nominalRatePerDay / 1440f;
 
                     CommercialBuffer buf = BufferHelper.GetOrAddCommercialBuffer(snapshot.Buffers, outLoad, false);
                     if (buf.MaxCapacity <= 0.001f)
@@ -186,35 +142,62 @@ namespace PrettyConvenientMenu.Data.Collectors
                         {
                             buf.RunwayDuration = null;
                         }
-                        totalOutputCount++;
-                        if (remainingCapacity <= outLoad.ZeroThreshold && dailyRate > 0.001f)
-                        {
-                            blockedOutputCount++;
-                            blockedOutputCargo = outLoad.description ?? "Output";
-                        }
                     }
-                    SpurCarProgressionHelper.CollectCarsForSpur(opsController, loader, outLoad, component, industry, currentStock, nominalRatePerMin, false, snapshot);
-                }
-
-                if (component is TeamTrack teamTrack && opsController != null)
-                {
-                    CarTrackingHelper.CollectTeamTrackCars(opsController, teamTrack, component, industry, snapshot);
-                }
-
-                if (component is ProgressionIndustryComponent prog && opsController != null)
-                {
-                    CollectProgressionIndustryCars(opsController, prog, component, industry, snapshot);
                 }
             }
+        }
 
-            // 3. Status Messaging
+        public void ScanEnRouteTraffic(Industry industry, IndustrySnapshot snapshot)
+        {
+            // TODO: Scan TrainController.Shared.Cars for en-route cars waybilled to this commercial facility's loaders/unloaders
+            // and populate an "En Route (Arriving)" SpurCarGroup with scheduled inbound/outbound buffer tallies.
+        }
+
+        public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
+        {
             if (industry.usesContract && snapshot.CurrentTier == 0)
             {
                 snapshot.State = ProductionState.Idle;
                 snapshot.StatusMessage = "No active contract tier set.";
                 snapshot.DiagnosticAlert = "Establish a contract in the company window to begin operations.";
+                return;
             }
-            else if (starvedInputCount > 0 && starvedInputCount == totalInputCount)
+
+            int totalInputCount = 0;
+            int starvedInputCount = 0;
+            string starvedInputCargo = string.Empty;
+
+            int totalOutputCount = 0;
+            int blockedOutputCount = 0;
+            string blockedOutputCargo = string.Empty;
+
+            for (int i = 0; i < snapshot.Buffers.Count; i++)
+            {
+                if (snapshot.Buffers[i] is CommercialBuffer cb)
+                {
+                    if (cb.IsInput)
+                    {
+                        totalInputCount++;
+                        if (cb.CurrentAmount <= 0.001f && cb.DailyRate > 0.001f)
+                        {
+                            starvedInputCount++;
+                            starvedInputCargo = cb.CargoDisplayName;
+                        }
+                    }
+                    else
+                    {
+                        totalOutputCount++;
+                        float remaining = Math.Max(0f, cb.MaxCapacity - cb.CurrentAmount);
+                        if (remaining <= 0.001f && cb.DailyRate > 0.001f)
+                        {
+                            blockedOutputCount++;
+                            blockedOutputCargo = cb.CargoDisplayName;
+                        }
+                    }
+                }
+            }
+
+            if (starvedInputCount > 0 && starvedInputCount == totalInputCount)
             {
                 snapshot.State = ProductionState.Starved;
                 snapshot.StatusMessage = "Raw input material depleted.";
@@ -241,58 +224,10 @@ namespace PrettyConvenientMenu.Data.Collectors
                 }
                 else
                 {
+                    float contractMultiplier = industry.GetContractMultiplier();
                     snapshot.StatusMessage = $"Producing normally at {contractMultiplier * 100f:F0}% throughput.";
                     snapshot.DiagnosticAlert = string.Empty;
                 }
-            }
-        }
-
-        private static void CollectProgressionIndustryCars(
-            OpsController opsController,
-            ProgressionIndustryComponent prog,
-            IndustryComponent displayComponent,
-            Industry industry,
-            IndustrySnapshot snapshot)
-        {
-            string trackName = displayComponent.ShortName(industry) ?? "Material Delivery Track";
-            SpurCarGroup spurGroup = BufferHelper.GetOrAddSpurGroup(snapshot.SpurGroups, trackName, SpurRole.CommercialInbound);
-
-            IEnumerable<Car>? cars = opsController.CarsAtPosition(prog);
-            if (cars == null)
-            {
-                return;
-            }
-
-            foreach (Car car in cars)
-            {
-                if (car == null || Mathf.Abs(car.velocity) > 0.05f)
-                {
-                    continue;
-                }
-
-                IOpsCar? opsCar = opsController.CachedOpsCar(car);
-                if (opsCar == null || !CarTrackingHelper.IsWaybilledHere(opsCar.Waybill, industry, prog))
-                {
-                    continue;
-                }
-
-                SpottedCarInfo carInfo = new SpottedCarInfo
-                {
-                    CarId = car.id,
-                    ReportingMark = opsCar.DisplayName ?? opsCar.Id ?? string.Empty,
-                    CarType = opsCar.CarType ?? "Car",
-                    TrackName = trackName,
-                    CargoName = "Staged Car",
-                    Units = LoadUnits.Quantity,
-                    CurrentAmount = 0f,
-                    CapacityAmount = 0f,
-                    TransferRatePerMinute = 0f,
-                    EstimatedTimeToCompletion = null,
-                    StatusState = CarStatusState.Idle,
-                    StatusDetail = "Staged"
-                };
-
-                spurGroup.Cars.Add(carInfo);
             }
         }
     }

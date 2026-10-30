@@ -3,6 +3,7 @@ using NUnit.Framework;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.RollingStock;
+using PrettyConvenientMenu.Data.Spurs;
 
 namespace PrettyConvenientMenu.Tests
 {

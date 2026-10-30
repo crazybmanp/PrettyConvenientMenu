@@ -103,6 +103,11 @@ namespace PrettyConvenientMenu.Data.Helpers
                     continue;
                 }
 
+                if (!IsWaybilledHere(waybill, industry, component))
+                {
+                    continue;
+                }
+
                 TeamTrackProfile.Entry? matchedEntry = null;
                 for (int p = 0; p < teamTrack.profileEntries.Count; p++)
                 {

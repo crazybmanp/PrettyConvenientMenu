@@ -57,23 +57,14 @@ namespace PrettyConvenientMenu.Data.Helpers
                     continue;
                 }
 
-                if (isUnload)
+                if (!CarTrackingHelper.IsWaybilledHere(opsCar.Waybill, industry, component))
                 {
-                    if (opsCar.Waybill is not { } waybill || !waybill.Destination.Equals(component))
-                    {
-                        continue;
-                    }
-                    if (!opsCar.IsEmptyOrContains(load))
-                    {
-                        continue;
-                    }
+                    continue;
                 }
-                else
+
+                if (!opsCar.IsEmptyOrContains(load))
                 {
-                    if (!opsCar.IsEmptyOrContains(load))
-                    {
-                        continue;
-                    }
+                    continue;
                 }
 
                 (float qty, float cap) = opsCar.QuantityOfLoad(load);

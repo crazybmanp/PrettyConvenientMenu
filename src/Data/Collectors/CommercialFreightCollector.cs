@@ -271,7 +271,7 @@ namespace PrettyConvenientMenu.Data.Collectors
                 }
 
                 IOpsCar? opsCar = opsController.CachedOpsCar(car);
-                if (opsCar == null)
+                if (opsCar == null || !CarTrackingHelper.IsWaybilledHere(opsCar.Waybill, industry, prog))
                 {
                     continue;
                 }

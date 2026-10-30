@@ -1,9 +1,9 @@
 namespace PrettyConvenientMenu.Data.Facilities
 {
     /// <summary>
-    /// Categorizes an industry into one of the core operational facility archetypes in Railroader.
+    /// Categorizes a facility into one of the core operational archetypes in Railroader.
     /// </summary>
-    public enum IndustryFacilityType
+    public enum FacilityType
     {
         CommercialFreight,
         EngineService,

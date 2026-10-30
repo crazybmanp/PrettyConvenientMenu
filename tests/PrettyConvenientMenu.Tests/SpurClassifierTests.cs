@@ -76,56 +76,56 @@ namespace PrettyConvenientMenu.Tests
         public void ResolveSpurRole_WhenCanStorageTransfer_ResolvesMowMaterialHandling()
         {
             SpurCapabilities caps = new SpurCapabilities(canUnload: false, canLoad: false, canRepair: false, canTeamTrack: false, canStorageTransfer: true);
-            SpurRole role = SpurClassifier.ResolveSpurRole(caps);
-            Assert.AreEqual(SpurRole.MowMaterialHandling, role);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.MowMaterialHandling, role);
         }
 
         [Test]
         public void ResolveSpurRole_WhenCanRepair_ResolvesLocomotiveRepair()
         {
             SpurCapabilities caps = new SpurCapabilities(canUnload: false, canLoad: false, canRepair: true, canTeamTrack: false, canStorageTransfer: false);
-            SpurRole role = SpurClassifier.ResolveSpurRole(caps);
-            Assert.AreEqual(SpurRole.LocomotiveRepair, role);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.LocomotiveRepair, role);
         }
 
         [Test]
         public void ResolveSpurRole_WhenTeamTrack_ResolvesTeamTrack()
         {
             SpurCapabilities caps = new SpurCapabilities(canUnload: false, canLoad: false, canRepair: false, canTeamTrack: true, canStorageTransfer: false);
-            SpurRole role = SpurClassifier.ResolveSpurRole(caps);
-            Assert.AreEqual(SpurRole.TeamTrack, role);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.TeamTrack, role);
         }
 
         [Test]
         public void ResolveSpurRole_WhenCanLoadAndUnload_ResolvesCommercialDual()
         {
             SpurCapabilities caps = new SpurCapabilities(canUnload: true, canLoad: true, canRepair: false, canTeamTrack: false, canStorageTransfer: false);
-            SpurRole role = SpurClassifier.ResolveSpurRole(caps);
-            Assert.AreEqual(SpurRole.CommercialDual, role);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.CommercialDual, role);
         }
 
         [Test]
         public void ResolveSpurRole_WhenLoadOnly_ResolvesCommercialOutbound()
         {
             SpurCapabilities caps = new SpurCapabilities(canUnload: false, canLoad: true, canRepair: false, canTeamTrack: false, canStorageTransfer: false);
-            SpurRole role = SpurClassifier.ResolveSpurRole(caps);
-            Assert.AreEqual(SpurRole.CommercialOutbound, role);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.CommercialOutbound, role);
         }
 
         [Test]
         public void ResolveSpurRole_WhenUnloadOnly_ResolvesCommercialInbound()
         {
             SpurCapabilities caps = new SpurCapabilities(canUnload: true, canLoad: false, canRepair: false, canTeamTrack: false, canStorageTransfer: false);
-            SpurRole role = SpurClassifier.ResolveSpurRole(caps);
-            Assert.AreEqual(SpurRole.CommercialInbound, role);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.CommercialInbound, role);
         }
 
         [Test]
         public void ResolveSpurRole_WhenNoCapabilities_ResolvesUnknown()
         {
             SpurCapabilities caps = default;
-            SpurRole role = SpurClassifier.ResolveSpurRole(caps);
-            Assert.AreEqual(SpurRole.Unknown, role);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.Unknown, role);
         }
     }
 }

@@ -21,36 +21,36 @@ namespace PrettyConvenientMenu.Tests
             // 1. RepairTrack -> EngineService
             Industry engineFacility = new Industry { identifier = "engine_facility" };
             engineFacility.Components.Add(new RepairTrack());
-            Assert.AreEqual(IndustryFacilityType.EngineService, FacilityClassifier.Classify(engineFacility));
+            Assert.AreEqual(FacilityType.EngineService, FacilityClassifier.Classify(engineFacility));
 
             // 2. StorageLoader -> MaintenanceOfWay
             Industry mowFacility = new Industry { identifier = "mow_facility" };
             mowFacility.Components.Add(new StorageLoader());
-            Assert.AreEqual(IndustryFacilityType.MaintenanceOfWay, FacilityClassifier.Classify(mowFacility));
+            Assert.AreEqual(FacilityType.MaintenanceOfWay, FacilityClassifier.Classify(mowFacility));
 
             // 3. StorageUnloader -> MaintenanceOfWay
             Industry mowFacility2 = new Industry { identifier = "mow_facility_2" };
             mowFacility2.Components.Add(new StorageUnloader());
-            Assert.AreEqual(IndustryFacilityType.MaintenanceOfWay, FacilityClassifier.Classify(mowFacility2));
+            Assert.AreEqual(FacilityType.MaintenanceOfWay, FacilityClassifier.Classify(mowFacility2));
 
             // 4. TeamTrack without contract -> Depot
             Industry depotFacility = new Industry { identifier = "depot_facility", usesContract = false };
             depotFacility.Components.Add(new TeamTrack());
-            Assert.AreEqual(IndustryFacilityType.Depot, FacilityClassifier.Classify(depotFacility));
+            Assert.AreEqual(FacilityType.Depot, FacilityClassifier.Classify(depotFacility));
 
             // 5. Commercial Loader -> CommercialFreight
             Industry freightFacility = new Industry { identifier = "freight_facility" };
             freightFacility.Components.Add(new IndustryLoader());
-            Assert.AreEqual(IndustryFacilityType.CommercialFreight, FacilityClassifier.Classify(freightFacility));
+            Assert.AreEqual(FacilityType.CommercialFreight, FacilityClassifier.Classify(freightFacility));
 
             // 6. Formulaic Component -> CommercialFreight
             Industry formulaicFacility = new Industry { identifier = "formulaic_facility" };
             formulaicFacility.Components.Add(new FormulaicIndustryComponent());
-            Assert.AreEqual(IndustryFacilityType.CommercialFreight, FacilityClassifier.Classify(formulaicFacility));
+            Assert.AreEqual(FacilityType.CommercialFreight, FacilityClassifier.Classify(formulaicFacility));
 
             // 7. Generic facility with no special components defaults to CommercialFreight
             Industry genericFacility = new Industry { identifier = "generic_facility" };
-            Assert.AreEqual(IndustryFacilityType.CommercialFreight, FacilityClassifier.Classify(genericFacility));
+            Assert.AreEqual(FacilityType.CommercialFreight, FacilityClassifier.Classify(genericFacility));
         }
     }
 }

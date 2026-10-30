@@ -12,27 +12,27 @@ using UnityEngine.UI;
 namespace PrettyConvenientMenu.UI.Sections
 {
     /// <summary>
-    /// Renders the Spotted Rolling Stock section of the production menu.
+    /// Renders the Rolling Stock section of the facility monitor.
     /// Dispatches rendering between specialized Repair Track and Transfer Track tables.
     /// </summary>
-    internal static class SpottedStockSection
+    internal static class RollingStockSection
     {
         private static readonly float[] ColumnShares = new float[5] { 2.0f, 1.5f, 1.4f, 1.4f, 1.0f };
         private static readonly float[] ColumnMaxCaps = new float[5] { 160f, 140f, 140f, 140f, 80f };
 
         public static ScrollRect? Build(
             UIPanelBuilder builder,
-            IndustrySnapshot snapshot,
+            FacilitySnapshot snapshot,
             float savedAnchoredY)
         {
             ScrollRect? activeScrollRect = null;
 
-            builder.AddSection("Spotted Rolling Stock", b =>
+            builder.AddSection("Rolling Stock", b =>
             {
-                int groupCount = snapshot.SpurGroups.Count;
+                int groupCount = snapshot.CarGroups.Count;
                 if (groupCount == 0)
                 {
-                    b.AddLabelEmptyState("No spotted cars detected at this facility.");
+                    b.AddLabelEmptyState("No rolling stock detected at this facility.");
                     activeScrollRect = null;
                     return;
                 }
@@ -44,7 +44,7 @@ namespace PrettyConvenientMenu.UI.Sections
 
                     for (int g = 0; g < groupCount; g++)
                     {
-                        RenderSpurGroup(scrollBuilder, snapshot.SpurGroups[g], snapshot.FacilityType, allHeaders, allRows);
+                        RenderCarGroup(scrollBuilder, snapshot.CarGroups[g], snapshot.FacilityType, allHeaders, allRows);
                     }
 
                     if (allHeaders.Count > 0)
@@ -64,14 +64,14 @@ namespace PrettyConvenientMenu.UI.Sections
             return activeScrollRect;
         }
 
-        private static void RenderSpurGroup(
+        private static void RenderCarGroup(
             UIPanelBuilder scrollBuilder,
-            SpurCarGroup group,
-            IndustryFacilityType facilityType,
+            FacilityCarGroup group,
+            FacilityType facilityType,
             List<RectTransform[]> allHeaders,
             List<RectTransform[]> allRows)
         {
-            (string direction, string headerColor) = StatusBadges.GetSpurGroupStyle(facilityType, group);
+            (string direction, string headerColor) = StatusBadges.GetCarGroupStyle(facilityType, group);
 
             string spurTitle = group.IsEnRoute
                 ? $"<color={headerColor}><b>Arriving: {group.TrackName}</b></color>  ({direction})"
@@ -86,7 +86,7 @@ namespace PrettyConvenientMenu.UI.Sections
                 return;
             }
 
-            bool isRepairSpur = group.Role is SpurRole.LocomotiveRepair or SpurRole.EnRouteRepair;
+            bool isRepairSpur = group.Role is CarGroupRole.LocomotiveRepair or CarGroupRole.EnRouteRepair;
 
             // Render Header
             RectTransform[] headerCells = new RectTransform[5];
@@ -146,7 +146,7 @@ namespace PrettyConvenientMenu.UI.Sections
             UIPanelBuilder row,
             SpottedCarInfo car,
             bool isRepairSpur,
-            IndustryFacilityType facilityType,
+            FacilityType facilityType,
             RectTransform[] rowCells)
         {
             // Col 1: Car Link / Identifier
@@ -194,7 +194,7 @@ namespace PrettyConvenientMenu.UI.Sections
 
         private static void ConfigureScrollPaddingAndPosition(
             ScrollRect activeScrollRect,
-            IndustrySnapshot snapshot,
+            FacilitySnapshot snapshot,
             float savedAnchoredY)
         {
             float scrollbarWidth = 20f;
@@ -207,7 +207,7 @@ namespace PrettyConvenientMenu.UI.Sections
                 }
             }
 
-            bool isScrollable = snapshot.SpurGroups.Count > 1 || snapshot.TotalCarCount >= 3;
+            bool isScrollable = snapshot.CarGroups.Count > 1 || snapshot.TotalCarCount >= 3;
             if (activeScrollRect.content == null) return;
 
             VerticalLayoutGroup vlg = activeScrollRect.content.GetComponent<VerticalLayoutGroup>();

@@ -11,7 +11,7 @@ namespace PrettyConvenientMenu.Interaction
     /// Resolves an Industry facility from track locations or raycast collider hits.
     /// Preserves Unity-safe null equality checks for UnityEngine.Object types.
     /// </summary>
-    internal static class IndustryResolver
+    internal static class FacilityResolver
     {
         private const float SidingClearanceRadius = 50f;
         private const float CoarseIndustryRadiusSq = 400f * 400f;

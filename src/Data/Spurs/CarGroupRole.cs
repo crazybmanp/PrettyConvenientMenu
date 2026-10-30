@@ -1,9 +1,9 @@
 namespace PrettyConvenientMenu.Data.Spurs
 {
     /// <summary>
-    /// Explicit operational purpose of a spur track or rolling stock grouping.
+    /// Explicit operational role of a rolling stock grouping at a facility or en route.
     /// </summary>
-    public enum SpurRole
+    public enum CarGroupRole
     {
         CommercialInbound,
         CommercialOutbound,

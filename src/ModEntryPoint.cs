@@ -62,7 +62,7 @@ namespace PrettyConvenientMenu
             // Set up interaction listener for 3D world raycasting
             interactionHost = new GameObject("PrettyConvenientMenu_InteractionHost");
             UnityEngine.Object.DontDestroyOnLoad(interactionHost);
-            interactionHost.AddComponent<Interaction.IndustryWorldInteraction>();
+            interactionHost.AddComponent<Interaction.FacilityWorldInteraction>();
         }
 
         public void OnWorldUnload()

@@ -10,18 +10,18 @@ namespace PrettyConvenientMenu.Data
 {
     /// <summary>
     /// Central orchestration service that compiles the complete operational state of an <see cref="Industry"/>
-    /// into an <see cref="IndustrySnapshot"/> consumed by the production monitoring UI.
+    /// into a <see cref="FacilitySnapshot"/> consumed by the facility monitoring UI.
     /// Coordinates facility classification, buffer calculation, track spur classification, 
     /// en-route traffic detection, and operational diagnostics through a deterministic lifecycle.
     /// </summary>
-    public static class IndustryDataService
+    public static class FacilityDataService
     {
-        private static readonly Dictionary<IndustryFacilityType, IFacilityDataCollector> Collectors = new Dictionary<IndustryFacilityType, IFacilityDataCollector>
+        private static readonly Dictionary<FacilityType, IFacilityDataCollector> Collectors = new Dictionary<FacilityType, IFacilityDataCollector>
         {
-            { IndustryFacilityType.CommercialFreight, new CommercialFreightCollector() },
-            { IndustryFacilityType.EngineService, new EngineServiceCollector() },
-            { IndustryFacilityType.MaintenanceOfWay, new MowYardCollector() },
-            { IndustryFacilityType.Depot, new DepotCollector() }
+            { FacilityType.CommercialFreight, new CommercialFreightCollector() },
+            { FacilityType.EngineService, new EngineServiceCollector() },
+            { FacilityType.MaintenanceOfWay, new MowYardCollector() },
+            { FacilityType.Depot, new DepotCollector() }
         };
 
         /// <summary>
@@ -32,9 +32,9 @@ namespace PrettyConvenientMenu.Data
         /// <param name="industry">The target industry.</param>
         /// <param name="snapshot">Optional existing snapshot instance to mutate in-place.</param>
         /// <returns>The populated snapshot instance.</returns>
-        public static IndustrySnapshot PopulateSnapshot(Industry industry, IndustrySnapshot? snapshot = null)
+        public static FacilitySnapshot PopulateSnapshot(Industry industry, FacilitySnapshot? snapshot = null)
         {
-            snapshot ??= new IndustrySnapshot();
+            snapshot ??= new FacilitySnapshot();
             IFacilityDataCollector collector = GetCollector(FacilityClassifier.Classify(industry));
             ExecuteLifecycle(collector, industry, snapshot);
             return snapshot;
@@ -46,7 +46,7 @@ namespace PrettyConvenientMenu.Data
         /// <param name="facilityType">The facility archetype.</param>
         /// <returns>The registered <see cref="IFacilityDataCollector"/> instance.</returns>
         /// <exception cref="ArgumentOutOfRangeException">Thrown if no collector is mapped for the facility type.</exception>
-        public static IFacilityDataCollector GetCollector(IndustryFacilityType facilityType)
+        public static IFacilityDataCollector GetCollector(FacilityType facilityType)
         {
             if (Collectors.TryGetValue(facilityType, out IFacilityDataCollector collector))
             {
@@ -68,7 +68,7 @@ namespace PrettyConvenientMenu.Data
         /// <param name="collector">The specialized facility collector.</param>
         /// <param name="industry">The game industry instance.</param>
         /// <param name="snapshot">The snapshot being assembled.</param>
-        public static void ExecuteLifecycle(IFacilityDataCollector collector, Industry industry, IndustrySnapshot snapshot)
+        public static void ExecuteLifecycle(IFacilityDataCollector collector, Industry industry, FacilitySnapshot snapshot)
         {
             snapshot.Reset(industry, collector.FacilityType);
             collector.PopulateFacilityMetadata(industry, snapshot);

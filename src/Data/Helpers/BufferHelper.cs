@@ -4,7 +4,6 @@ using Model.Definition.Data;
 using Model.Ops;
 using Model.Ops.Definition;
 using PrettyConvenientMenu.Data.Buffers;
-using PrettyConvenientMenu.Data.RollingStock;
 using PrettyConvenientMenu.Data.Spurs;
 using UnityEngine;
 
@@ -73,25 +72,6 @@ namespace PrettyConvenientMenu.Data.Helpers
         public static ReserveBuffer GetOrAddReserveBuffer(List<BufferInfo> buffers, Load load, BufferRole role)
         {
             return GetOrAddReserveBuffer(buffers, load.id, load.description ?? load.id, load.units, role);
-        }
-
-        public static SpurCarGroup GetOrAddSpurGroup(List<SpurCarGroup> groups, string trackName, SpurRole role)
-        {
-            foreach (SpurCarGroup group in groups)
-            {
-                if (group.TrackName == trackName && group.Role == role)
-                {
-                    return group;
-                }
-            }
-
-            SpurCarGroup newGroup = new SpurCarGroup
-            {
-                TrackName = trackName,
-                Role = role
-            };
-            groups.Add(newGroup);
-            return newGroup;
         }
 
         public static float FindMaxStorageForLoad(List<IndustryComponent>? components, Load? targetLoad)

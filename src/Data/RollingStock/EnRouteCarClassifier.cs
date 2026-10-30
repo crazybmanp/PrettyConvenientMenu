@@ -12,19 +12,19 @@ namespace PrettyConvenientMenu.Data.RollingStock
 {
     public static class EnRouteCarClassifier
     {
-        public static void ClassifyEnRouteCars(Industry industry, IndustrySnapshot snapshot, OpsController? opsController = null)
+        public static void ClassifyEnRouteCars(Industry industry, FacilitySnapshot snapshot, OpsController? opsController = null)
         {
-            if (snapshot.FacilityType is IndustryFacilityType.CommercialFreight or IndustryFacilityType.Depot) return;
+            if (snapshot.FacilityType is FacilityType.CommercialFreight or FacilityType.Depot) return;
             if (industry.Components is not { Count: > 0 } components || TrainController.Shared == null) return;
 
             opsController ??= OpsController.Shared;
             if (opsController == null) return;
 
-            int spottedGroupCount = snapshot.SpurGroups.Count;
+            int spottedGroupCount = snapshot.CarGroups.Count;
 
             foreach (Car car in TrainController.Shared.Cars)
             {
-                if (car == null || IsAlreadySpotted(snapshot.SpurGroups, spottedGroupCount, car)) continue;
+                if (car == null || IsAlreadySpotted(snapshot.CarGroups, spottedGroupCount, car)) continue;
                 if (opsController.CachedOpsCar(car) is not { } opsCar) continue;
 
                 foreach (IndustryComponent comp in components)
@@ -43,10 +43,10 @@ namespace PrettyConvenientMenu.Data.RollingStock
                         }
 
                         SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
-                        carInfo.MarkRepair(demand, CarStatusState.EnRoute, isOverhaul ? "En Route (Overhaul)" : "En Route (Repair)", car.Condition);
+                        carInfo.MarkRepair(demand, CarStatus.EnRoute, isOverhaul ? "En Route (Overhaul)" : "En Route (Repair)", car.Condition);
 
                         string trackName = repairTrack.ShortName(industry) ?? "Repair Track";
-                        BufferHelper.GetOrAddSpurGroup(snapshot.SpurGroups, trackName, SpurRole.EnRouteRepair).Cars.Add(carInfo);
+                        snapshot.GetOrAddCarGroup(trackName, CarGroupRole.EnRouteRepair).Cars.Add(carInfo);
                         break;
                     }
 
@@ -67,7 +67,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
 
                         SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
                         carInfo.MarkEnRoute();
-                        BufferHelper.GetOrAddSpurGroup(snapshot.SpurGroups, "En Route (Arriving)", SpurRole.EnRouteWaybill).Cars.Add(carInfo);
+                        snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
                         break;
                     }
 
@@ -87,14 +87,14 @@ namespace PrettyConvenientMenu.Data.RollingStock
                         SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
                         carInfo.SetLoad(outLoad, qty, cap);
                         carInfo.MarkEnRoute();
-                        BufferHelper.GetOrAddSpurGroup(snapshot.SpurGroups, "En Route (Arriving)", SpurRole.EnRouteWaybill).Cars.Add(carInfo);
+                        snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
                         break;
                     }
                 }
             }
         }
 
-        private static bool IsAlreadySpotted(List<SpurCarGroup> groups, int count, Car car)
+        private static bool IsAlreadySpotted(List<FacilityCarGroup> groups, int count, Car car)
         {
             for (int i = 0; i < count; i++)
             {

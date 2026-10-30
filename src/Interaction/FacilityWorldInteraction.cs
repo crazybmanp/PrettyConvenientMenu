@@ -8,14 +8,14 @@ using UnityEngine;
 namespace PrettyConvenientMenu.Interaction
 {
     /// <summary>
-    /// Coordinates 3D world clicking to open the industry inspection window.
+    /// Coordinates 3D world clicking to open the facility window.
     /// Delegates validation to <see cref="WorldInteractionGatekeeper"/>, exclusions to <see cref="InteractionHitFilter"/>,
-    /// and spatial matching to <see cref="IndustryResolver"/>.
+    /// and spatial matching to <see cref="FacilityResolver"/>.
     /// </summary>
     [DefaultExecutionOrder(-100)]
-    public sealed class IndustryWorldInteraction : MonoBehaviour
+    public sealed class FacilityWorldInteraction : MonoBehaviour
     {
-        public static IndustryWorldInteraction? Instance { get; private set; }
+        public static FacilityWorldInteraction? Instance { get; private set; }
 
         private const float maxRaycastDistance = 3000f;
         private Camera? cachedCamera;
@@ -49,7 +49,7 @@ namespace PrettyConvenientMenu.Interaction
                 // 3. Track Geometry Check (clicking on rails inside an industry track span)
                 if (Graph.Shared is { } graph && graph.LocationFromMouse(cachedCamera) is { } trackLoc)
                 {
-                    if (IndustryResolver.TryResolveFromTrack(trackLoc, out Industry? trackIndustry))
+                    if (FacilityResolver.TryResolveFromTrack(trackLoc, out Industry? trackIndustry))
                     {
                         OpenForIndustry(trackIndustry!);
                         return;
@@ -63,7 +63,7 @@ namespace PrettyConvenientMenu.Interaction
                 {
                     if (!InteractionHitFilter.ShouldIgnoreHit(hit.collider))
                     {
-                        if (IndustryResolver.TryResolveFromHit(hit, out Industry? hitIndustry))
+                        if (FacilityResolver.TryResolveFromHit(hit, out Industry? hitIndustry))
                         {
                             OpenForIndustry(hitIndustry!);
                         }
@@ -72,7 +72,7 @@ namespace PrettyConvenientMenu.Interaction
             }
             catch (Exception ex)
             {
-                ModEntryPoint.Log.Error(ex, "Error processing world click interaction in IndustryWorldInteraction.");
+                ModEntryPoint.Log.Error(ex, "Error processing world click interaction in FacilityWorldInteraction.");
             }
         }
 
@@ -83,7 +83,7 @@ namespace PrettyConvenientMenu.Interaction
                 return;
             }
 
-            IndustryProductionWindow.Open(industry);
+            FacilityWindow.Open(industry);
         }
     }
 }

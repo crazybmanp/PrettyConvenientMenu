@@ -19,14 +19,14 @@ namespace PrettyConvenientMenu.Data.RollingStock
         /// Instantiates tracked car records for stationary cars on a physical spur and classifies their status in-place.
         /// </summary>
         public static void ClassifySpurCars(
-            SpurCarGroup spurGroup,
+            FacilityCarGroup spurGroup,
             IReadOnlyList<IndustryComponent> componentsOnSpur,
             IEnumerable<Car> carsOnTrack,
             Industry industry,
-            IndustrySnapshot snapshot,
+            FacilitySnapshot snapshot,
             OpsController opsController,
             SpurCapabilities caps,
-            SpurRole role)
+            CarGroupRole role)
         {
             spurGroup.Cars.Clear();
             int trackIndex = 0;
@@ -59,7 +59,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
             Industry industry,
             ReserveBuffer? repairBuffer,
             OpsController opsController,
-            SpurRole role)
+            CarGroupRole role)
         {
             // Step 1: Active Component Work (Queue already classified, or RepairTrack / TeamTrack match)
             if (carInfo.IsClassified || TryClassifyComponentWork(carInfo, componentsOnSpur, industry, repairBuffer, opsController))
@@ -79,7 +79,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
             // Step 3: Foreign Waybill (Staged on maintenance tracks vs Misspotted on commercial tracks)
             if (opsCar.Waybill is { } waybill)
             {
-                if (role is SpurRole.MowMaterialHandling or SpurRole.MowStaging)
+                if (role is CarGroupRole.MowMaterialHandling or CarGroupRole.MowStaging)
                 {
                     carInfo.MarkPassive("Staged");
                 }
@@ -95,7 +95,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
             }
 
             // Step 4: Passive Stock (Stored yard stock vs Parked commercial empties)
-            string passiveAction = role is SpurRole.MowMaterialHandling or SpurRole.MowStaging ? "Stored" : "Parked";
+            string passiveAction = role is CarGroupRole.MowMaterialHandling or CarGroupRole.MowStaging ? "Stored" : "Parked";
             carInfo.MarkPassive(passiveAction);
         }
 
@@ -138,7 +138,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     repairBuffer.ProgramDemand += partsDemand;
                 }
 
-                CarStatusState state = isOverhaul ? CarStatusState.ProgramOverhaul : CarStatusState.ProgramRepair;
+                CarStatus state = isOverhaul ? CarStatus.ProgramOverhaul : CarStatus.ProgramRepair;
                 string detail = isOverhaul ? "Program Overhaul" : "Program Repair";
                 TimeSpan? eta = RepairTrackHelper.CalculateRepairEta(partsDemand, repairTrack);
                 carInfo.MarkRepair(partsDemand, state, detail, car.Condition, eta);
@@ -154,7 +154,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
                 }
 
                 TimeSpan? eta = RepairTrackHelper.CalculateRepairEta(partsDemand, repairTrack);
-                carInfo.MarkRepair(partsDemand, CarStatusState.SpotRepair, "Spot Repair", car.Condition, eta);
+                carInfo.MarkRepair(partsDemand, CarStatus.SpotRepair, "Spot Repair", car.Condition, eta);
                 return true;
             }
 

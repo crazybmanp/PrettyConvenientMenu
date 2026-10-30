@@ -7,7 +7,7 @@ namespace PrettyConvenientMenu.Data
 {
     public static class FacilityClassifier
     {
-        public static IndustryFacilityType Classify(Industry industry)
+        public static FacilityType Classify(Industry industry)
         {
             if (industry == null)
             {
@@ -59,35 +59,35 @@ namespace PrettyConvenientMenu.Data
                 // 1. MOW Supply Tracks (ties, rails, ballast)
                 if (hasStorageLoaderOrUnloader)
                 {
-                    return IndustryFacilityType.MaintenanceOfWay;
+                    return FacilityType.MaintenanceOfWay;
                 }
 
                 // 2. Equipment / Locomotive Repair Tracks
                 if (hasRepairTrack)
                 {
-                    return IndustryFacilityType.EngineService;
+                    return FacilityType.EngineService;
                 }
 
                 // 3. Commercial Progression / Production Loaders
                 if (hasProgression || hasOutputLoader)
                 {
-                    return IndustryFacilityType.CommercialFreight;
+                    return FacilityType.CommercialFreight;
                 }
 
                 // 4. Dedicated Service Fuel / Sand / Coal / Water Unloaders without Freight Contracts
                 if (hasServiceUnloader && !industry.usesContract)
                 {
-                    return IndustryFacilityType.EngineService;
+                    return FacilityType.EngineService;
                 }
 
                 // 5. Team Tracks without Freight Contracts (Passenger / Depot)
                 if (hasTeamTrack && !industry.usesContract)
                 {
-                    return IndustryFacilityType.Depot;
+                    return FacilityType.Depot;
                 }
             }
 
-            return IndustryFacilityType.CommercialFreight;
+            return FacilityType.CommercialFreight;
         }
     }
 }

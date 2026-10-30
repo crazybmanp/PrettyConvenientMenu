@@ -112,7 +112,7 @@ namespace PrettyConvenientMenu.Tests
             var car = new PrettyConvenientMenu.Data.RollingStock.SpottedCarInfo
             {
                 CustomLoadString = "100%",
-                StatusState = PrettyConvenientMenu.Data.RollingStock.CarStatusState.Serviced
+                Status = PrettyConvenientMenu.Data.RollingStock.CarStatus.Serviced
             };
 
             (string cond, string parts) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatRepairCells(car);
@@ -148,7 +148,7 @@ namespace PrettyConvenientMenu.Tests
             };
 
             (string load, string rate) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatTransferCells(
-                car, PrettyConvenientMenu.Data.Facilities.IndustryFacilityType.MaintenanceOfWay);
+                car, PrettyConvenientMenu.Data.Facilities.FacilityType.MaintenanceOfWay);
 
             Assert.AreEqual("Empty", load);
             Assert.AreEqual("--", rate);
@@ -166,7 +166,7 @@ namespace PrettyConvenientMenu.Tests
             };
 
             (string load, string rate) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatTransferCells(
-                car, PrettyConvenientMenu.Data.Facilities.IndustryFacilityType.MaintenanceOfWay);
+                car, PrettyConvenientMenu.Data.Facilities.FacilityType.MaintenanceOfWay);
 
             Assert.AreEqual("8.1T Ballast", load);
             Assert.AreEqual("--", rate);

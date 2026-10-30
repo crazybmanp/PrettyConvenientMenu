@@ -33,7 +33,7 @@ namespace PrettyConvenientMenu.UI.Sections
         public static (string text, string color) GetStatusDisplay(SpottedCarInfo car)
         {
             string color = StatusBadges.GetCarStatusColor(car);
-            string text = !string.IsNullOrEmpty(car.StatusDetail) ? car.StatusDetail : car.StatusState.ToString();
+            string text = !string.IsNullOrEmpty(car.StatusDetail) ? car.StatusDetail : car.Status.ToString();
             return (text, color);
         }
 
@@ -48,7 +48,7 @@ namespace PrettyConvenientMenu.UI.Sections
             if (!string.IsNullOrEmpty(car.CustomLoadString))
             {
                 string cond = car.CustomLoadString!;
-                string parts = car.StatusState == CarStatusState.Serviced
+                string parts = car.Status == CarStatus.Serviced
                     ? "--"
                     : FormatHelper.FormatWeight(car.CurrentAmount);
                 return (cond, parts);
@@ -61,7 +61,7 @@ namespace PrettyConvenientMenu.UI.Sections
         /// <summary>
         /// Formats Column 3 (Load) and Column 4 (Rate) for transfer track tables (Commercial, MOW, Team Tracks).
         /// </summary>
-        public static (string loadStr, string rateStr) FormatTransferCells(SpottedCarInfo car, IndustryFacilityType facilityType)
+        public static (string loadStr, string rateStr) FormatTransferCells(SpottedCarInfo car, FacilityType facilityType)
         {
             string loadStr;
 
@@ -69,7 +69,7 @@ namespace PrettyConvenientMenu.UI.Sections
             {
                 loadStr = car.CustomLoadString!;
             }
-            else if (facilityType == IndustryFacilityType.MaintenanceOfWay)
+            else if (facilityType == FacilityType.MaintenanceOfWay)
             {
                 if (car.CurrentAmount > 0.001f)
                 {

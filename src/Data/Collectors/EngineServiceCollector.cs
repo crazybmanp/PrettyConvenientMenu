@@ -10,9 +10,9 @@ namespace PrettyConvenientMenu.Data.Collectors
 {
     public sealed class EngineServiceCollector : IFacilityDataCollector
     {
-        public IndustryFacilityType FacilityType => IndustryFacilityType.EngineService;
+        public FacilityType FacilityType => FacilityType.EngineService;
 
-        public void PopulateFacilityMetadata(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateFacilityMetadata(Industry industry, FacilitySnapshot snapshot)
         {
             snapshot.CurrentTier = 0;
             snapshot.TierDescription = "Locomotive Service Facility";
@@ -21,7 +21,7 @@ namespace PrettyConvenientMenu.Data.Collectors
             snapshot.DiagnosticAlert = string.Empty;
         }
 
-        public void PopulateBuffers(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)
         {
             List<IndustryComponent>? components = industry.Components;
             if (components == null) return;
@@ -59,7 +59,7 @@ namespace PrettyConvenientMenu.Data.Collectors
             }
         }
 
-        public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
+        public void EvaluateFacilityDiagnostics(Industry industry, FacilitySnapshot snapshot)
         {
             // Engine terminals are servicing depots with optional supplies (e.g. diesel, coal, sand, repair parts).
             // Empty reserves are normal operational state (e.g. running an all-steam roster) and do not halt operations.

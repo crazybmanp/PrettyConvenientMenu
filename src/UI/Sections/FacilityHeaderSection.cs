@@ -9,16 +9,16 @@ namespace PrettyConvenientMenu.UI.Sections
 {
     internal static class FacilityHeaderSection
     {
-        public static void Build(UIPanelBuilder builder, IndustrySnapshot snapshot)
+        public static void Build(UIPanelBuilder builder, FacilitySnapshot snapshot)
         {
-            if (snapshot.FacilityType == IndustryFacilityType.CommercialFreight)
+            if (snapshot.FacilityType == FacilityType.CommercialFreight)
             {
                 BuildCommercialHeader(builder, snapshot);
                 builder.Spacer(6f);
             }
         }
 
-        private static void BuildCommercialHeader(UIPanelBuilder builder, IndustrySnapshot snapshot)
+        private static void BuildCommercialHeader(UIPanelBuilder builder, FacilitySnapshot snapshot)
         {
             string statusBanner = StatusBadges.GetProductionStateBadge(snapshot.State);
             builder.AddLabel(statusBanner);

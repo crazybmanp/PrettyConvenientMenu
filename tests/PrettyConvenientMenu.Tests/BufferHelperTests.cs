@@ -4,8 +4,6 @@ using Model.Ops;
 using NUnit.Framework;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Helpers;
-using PrettyConvenientMenu.Data.RollingStock;
-using PrettyConvenientMenu.Data.Spurs;
 
 namespace PrettyConvenientMenu.Tests
 {
@@ -83,50 +81,6 @@ namespace PrettyConvenientMenu.Tests
             Assert.AreSame(initial, retrieved);
             Assert.AreEqual(1, buffers.Count);
             Assert.AreEqual(1200f, retrieved.CurrentAmount);
-        }
-
-        [Test]
-        public void GetOrAddSpurGroup_WhenDoesNotExist_CreatesNewAndAddsToList()
-        {
-            List<SpurCarGroup> groups = new List<SpurCarGroup>();
-
-            SpurCarGroup group = BufferHelper.GetOrAddSpurGroup(groups, "Spur 1", SpurRole.CommercialInbound);
-
-            Assert.IsNotNull(group);
-            Assert.AreEqual(1, groups.Count);
-            Assert.AreEqual("Spur 1", group.TrackName);
-            Assert.IsTrue(group.IsInbound);
-            Assert.IsFalse(group.IsEnRoute);
-            Assert.AreEqual(SpurRole.CommercialInbound, group.Role);
-        }
-
-        [Test]
-        public void GetOrAddSpurGroup_WhenMatchingExists_ReturnsExistingWithoutAddingDuplicate()
-        {
-            List<SpurCarGroup> groups = new List<SpurCarGroup>();
-            SpurCarGroup initial = BufferHelper.GetOrAddSpurGroup(groups, "Spur 1", SpurRole.CommercialInbound);
-            initial.Cars.Add(new SpottedCarInfo { ReportingMark = "PRR 123" });
-
-            SpurCarGroup retrieved = BufferHelper.GetOrAddSpurGroup(groups, "Spur 1", SpurRole.CommercialInbound);
-
-            Assert.AreSame(initial, retrieved);
-            Assert.AreEqual(1, groups.Count);
-            Assert.AreEqual(1, retrieved.Cars.Count);
-            Assert.AreEqual("PRR 123", retrieved.Cars[0].ReportingMark);
-        }
-
-        [Test]
-        public void GetOrAddSpurGroup_WhenSameTrackButDifferentRole_CreatesSeparateGroups()
-        {
-            List<SpurCarGroup> groups = new List<SpurCarGroup>();
-
-            SpurCarGroup inbound = BufferHelper.GetOrAddSpurGroup(groups, "Track A", SpurRole.CommercialInbound);
-            SpurCarGroup outbound = BufferHelper.GetOrAddSpurGroup(groups, "Track A", SpurRole.CommercialOutbound);
-
-            Assert.AreNotSame(inbound, outbound);
-            Assert.AreEqual(2, groups.Count);
-            Assert.IsTrue(inbound.IsInbound);
-            Assert.IsFalse(outbound.IsInbound);
         }
 
         [Test]

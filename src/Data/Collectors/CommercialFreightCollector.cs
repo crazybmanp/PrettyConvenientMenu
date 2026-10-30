@@ -10,9 +10,9 @@ namespace PrettyConvenientMenu.Data.Collectors
 {
     public sealed class CommercialFreightCollector : IFacilityDataCollector
     {
-        public IndustryFacilityType FacilityType => IndustryFacilityType.CommercialFreight;
+        public FacilityType FacilityType => FacilityType.CommercialFreight;
 
-        public void PopulateFacilityMetadata(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateFacilityMetadata(Industry industry, FacilitySnapshot snapshot)
         {
             if (industry.TryGetActiveContract(out Contract contract))
             {
@@ -26,7 +26,7 @@ namespace PrettyConvenientMenu.Data.Collectors
             }
         }
 
-        public void PopulateBuffers(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)
         {
             List<IndustryComponent>? components = industry.Components;
             if (components == null) return;
@@ -147,7 +147,7 @@ namespace PrettyConvenientMenu.Data.Collectors
             }
         }
 
-        public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
+        public void EvaluateFacilityDiagnostics(Industry industry, FacilitySnapshot snapshot)
         {
             if (industry.usesContract && snapshot.CurrentTier == 0)
             {

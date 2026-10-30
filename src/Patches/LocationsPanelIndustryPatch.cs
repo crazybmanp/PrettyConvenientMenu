@@ -32,11 +32,11 @@ namespace PrettyConvenientMenu.Patches
                 return;
             }
 
-            builder.AddSection("Production Monitor", b =>
+            builder.AddSection("Facility Monitor", b =>
             {
-                b.AddButton("Open Detailed Production Monitor", () =>
+                b.AddButton("Open Facility Monitor", () =>
                 {
-                    IndustryProductionWindow.Open(industry);
+                    FacilityWindow.Open(industry);
                 });
             });
         }

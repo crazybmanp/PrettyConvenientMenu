@@ -31,7 +31,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         public float TransferRatePerMinute { get; set; }
         public TimeSpan? EstimatedTimeToCompletion { get; set; }
 
-        public CarStatusState StatusState { get; set; } = CarStatusState.Unassigned;
+        public CarStatus Status { get; set; } = CarStatus.Unassigned;
         public string StatusDetail { get; set; } = string.Empty;
         public string? DestinationTrack { get; set; }
         public string? CustomLoadString { get; set; }
@@ -39,9 +39,9 @@ namespace PrettyConvenientMenu.Data.RollingStock
         /// <summary>
         /// True if this car has been evaluated and assigned an operational status by a component or passive check.
         /// </summary>
-        public bool IsClassified => StatusState != CarStatusState.Unassigned;
+        public bool IsClassified => Status != CarStatus.Unassigned;
 
-        public bool IsActiveTransfer => StatusState == CarStatusState.ActiveTransfer;
+        public bool IsActiveTransfer => Status == CarStatus.ActiveTransfer;
 
         /// <summary>
         /// Creates a new tracked SpottedCarInfo for a car spotted on a spur track, initialized to Unassigned.
@@ -62,7 +62,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
             Units = cargo?.units ?? LoadUnits.Pounds;
             CurrentAmount = cQty;
             CapacityAmount = cCap;
-            StatusState = CarStatusState.Unassigned;
+            Status = CarStatus.Unassigned;
             StatusDetail = string.Empty;
         }
 
@@ -88,7 +88,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = ratePerMin;
             EstimatedTimeToCompletion = eta;
-            StatusState = CarStatusState.ActiveTransfer;
+            Status = CarStatus.ActiveTransfer;
             StatusDetail = actionName;
         }
 
@@ -96,7 +96,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = eta;
-            StatusState = CarStatusState.Queued;
+            Status = CarStatus.Queued;
             StatusDetail = detail;
         }
 
@@ -104,7 +104,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
-            StatusState = CarStatusState.Blocked;
+            Status = CarStatus.Blocked;
             StatusDetail = detail;
         }
 
@@ -112,7 +112,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
-            StatusState = CarStatusState.Completed;
+            Status = CarStatus.Completed;
             StatusDetail = "Ready";
         }
 
@@ -120,12 +120,12 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
-            StatusState = CarStatusState.Serviced;
+            Status = CarStatus.Serviced;
             StatusDetail = hasWaybill ? "Serviced (Waybilled)" : "Serviced (Ready)";
             CustomLoadString = $"{condition * 100f:F0}%";
         }
 
-        public void MarkRepair(float partsDemand, CarStatusState statusState, string statusDetail, float condition, TimeSpan? eta = null)
+        public void MarkRepair(float partsDemand, CarStatus status, string statusDetail, float condition, TimeSpan? eta = null)
         {
             CargoName = "Parts";
             Units = LoadUnits.Pounds;
@@ -133,7 +133,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
             CapacityAmount = partsDemand;
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = eta;
-            StatusState = statusState;
+            Status = status;
             StatusDetail = statusDetail;
             CustomLoadString = $"{condition * 100f:F0}%";
         }
@@ -142,7 +142,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
-            StatusState = CarStatusState.WrongDestination;
+            Status = CarStatus.WrongDestination;
             StatusDetail = "Misspotted";
             DestinationTrack = destinationName;
         }
@@ -151,7 +151,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
-            StatusState = CarStatusState.Idle;
+            Status = CarStatus.Idle;
             StatusDetail = statusDetail;
         }
 
@@ -159,7 +159,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         {
             TransferRatePerMinute = 0f;
             EstimatedTimeToCompletion = null;
-            StatusState = CarStatusState.EnRoute;
+            Status = CarStatus.EnRoute;
             StatusDetail = statusDetail;
         }
     }

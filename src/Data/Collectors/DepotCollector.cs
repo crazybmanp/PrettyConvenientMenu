@@ -5,9 +5,9 @@ namespace PrettyConvenientMenu.Data.Collectors
 {
     public sealed class DepotCollector : IFacilityDataCollector
     {
-        public IndustryFacilityType FacilityType => IndustryFacilityType.Depot;
+        public FacilityType FacilityType => FacilityType.Depot;
 
-        public void PopulateFacilityMetadata(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateFacilityMetadata(Industry industry, FacilitySnapshot snapshot)
         {
             snapshot.CurrentTier = 0;
             snapshot.TierDescription = "Station & House Track";
@@ -16,12 +16,12 @@ namespace PrettyConvenientMenu.Data.Collectors
             snapshot.DiagnosticAlert = string.Empty;
         }
 
-        public void PopulateBuffers(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)
         {
             snapshot.Buffers.Clear();
         }
 
-        public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
+        public void EvaluateFacilityDiagnostics(Industry industry, FacilitySnapshot snapshot)
         {
         }
     }

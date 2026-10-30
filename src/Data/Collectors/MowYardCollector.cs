@@ -9,9 +9,9 @@ namespace PrettyConvenientMenu.Data.Collectors
 {
     public sealed class MowYardCollector : IFacilityDataCollector
     {
-        public IndustryFacilityType FacilityType => IndustryFacilityType.MaintenanceOfWay;
+        public FacilityType FacilityType => FacilityType.MaintenanceOfWay;
 
-        public void PopulateFacilityMetadata(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateFacilityMetadata(Industry industry, FacilitySnapshot snapshot)
         {
             snapshot.CurrentTier = 0;
             snapshot.TierDescription = "Maintenance of Way Material Depot";
@@ -20,7 +20,7 @@ namespace PrettyConvenientMenu.Data.Collectors
             snapshot.DiagnosticAlert = string.Empty;
         }
 
-        public void PopulateBuffers(Industry industry, IndustrySnapshot snapshot)
+        public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)
         {
             List<IndustryComponent>? components = industry.Components;
             if (components == null) return;
@@ -61,7 +61,7 @@ namespace PrettyConvenientMenu.Data.Collectors
             }
         }
 
-        public void EvaluateFacilityDiagnostics(Industry industry, IndustrySnapshot snapshot)
+        public void EvaluateFacilityDiagnostics(Industry industry, FacilitySnapshot snapshot)
         {
             // MOW yards are passive stockpiles and staging tracks for work trains, not active manufacturing facilities.
             // Empty reserves are normal and do not halt operations.

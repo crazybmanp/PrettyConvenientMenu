@@ -14,9 +14,9 @@ using UnityEngine.UI;
 namespace PrettyConvenientMenu.UI.Windows
 {
     [RequireComponent(typeof(Window))]
-    public class IndustryProductionWindow : BuilderWindowBase<IndustryProductionWindow>
+    public class FacilityWindow : BuilderWindowBase<FacilityWindow>
     {
-        private static readonly Dictionary<string, IndustryProductionWindow> ActiveWindows = new Dictionary<string, IndustryProductionWindow>();
+        private static readonly Dictionary<string, FacilityWindow> ActiveWindows = new Dictionary<string, FacilityWindow>();
         private static int cascadeCount = 0;
 
         public override string Identifier => identifier;
@@ -25,8 +25,8 @@ namespace PrettyConvenientMenu.UI.Windows
             new Vector2Int(560, 400)
         );
 
-        private string identifier = "PrettyConvenientMenu.IndustryProduction";
-        private readonly IndustrySnapshot snapshot = new IndustrySnapshot();
+        private string identifier = "PrettyConvenientMenu.Facility";
+        private readonly FacilitySnapshot snapshot = new FacilitySnapshot();
         private Industry? currentIndustry;
         private Coroutine? refreshCoroutine;
         private static readonly WaitForSeconds RefreshInterval = new WaitForSeconds(3.0f);
@@ -34,13 +34,13 @@ namespace PrettyConvenientMenu.UI.Windows
         private float savedScrollPos = 1.0f;
         private float savedAnchoredY = 0f;
 
-        public static IndustryProductionWindow? Open(Industry industry)
+        public static FacilityWindow? Open(Industry industry)
         {
             string indId = industry.identifier ?? string.Empty;
 
             try
             {
-                if (ActiveWindows.TryGetValue(indId, out IndustryProductionWindow existingWindow) &&
+                if (ActiveWindows.TryGetValue(indId, out FacilityWindow existingWindow) &&
                     existingWindow != null &&
                     existingWindow.Window != null &&
                     existingWindow.Window.IsShown)
@@ -51,12 +51,12 @@ namespace PrettyConvenientMenu.UI.Windows
 
                 if (WindowManager.Shared == null)
                 {
-                    ModEntryPoint.Log.Error("Cannot open IndustryProductionWindow: WindowManager.Shared is unavailable.");
+                    ModEntryPoint.Log.Error("Cannot open FacilityWindow: WindowManager.Shared is unavailable.");
                     return null;
                 }
 
-                IndustryProductionWindow window = WindowManager.Shared.CreateWindowWithComponent<IndustryProductionWindow>();
-                window.identifier = $"PrettyConvenientMenu.IndustryProduction.{indId}";
+                FacilityWindow window = WindowManager.Shared.CreateWindowWithComponent<FacilityWindow>();
+                window.identifier = $"PrettyConvenientMenu.Facility.{indId}";
                 ActiveWindows[indId] = window;
                 window.InitializeForIndustry(industry);
 
@@ -73,7 +73,7 @@ namespace PrettyConvenientMenu.UI.Windows
             }
             catch (Exception ex)
             {
-                ModEntryPoint.Log.Error(ex, $"Failed to open IndustryProductionWindow for '{indId}'.");
+                ModEntryPoint.Log.Error(ex, $"Failed to open FacilityWindow for '{indId}'.");
                 return null;
             }
         }
@@ -81,9 +81,9 @@ namespace PrettyConvenientMenu.UI.Windows
         private void InitializeForIndustry(Industry industry)
         {
             currentIndustry = industry;
-            Title = $"{industry.DisplayName} - Production Monitor";
+            Title = $"{industry.DisplayName} — Facility Monitor";
 
-            IndustryDataService.PopulateSnapshot(industry, snapshot);
+            FacilityDataService.PopulateSnapshot(industry, snapshot);
             Show();
 
             if (refreshCoroutine != null)
@@ -135,7 +135,7 @@ namespace PrettyConvenientMenu.UI.Windows
                         savedAnchoredY = activeScrollRect.content.anchoredPosition.y;
                     }
 
-                    IndustryDataService.PopulateSnapshot(currentIndustry, snapshot);
+                    FacilityDataService.PopulateSnapshot(currentIndustry, snapshot);
                     RebuildPanel();
 
                     if (activeScrollRect != null && activeScrollRect.content != null)
@@ -184,7 +184,7 @@ namespace PrettyConvenientMenu.UI.Windows
                 }
                 catch (Exception ex)
                 {
-                    ModEntryPoint.Log.Error(ex, $"Periodic refresh error in IndustryProductionWindow for '{snapshot.DisplayName}'.");
+                    ModEntryPoint.Log.Error(ex, $"Periodic refresh error in FacilityWindow for '{snapshot.DisplayName}'.");
                 }
             }
 
@@ -225,12 +225,12 @@ namespace PrettyConvenientMenu.UI.Windows
                 FacilityDiagnosticsSection.Build(builder, snapshot);
                 builder.Spacer(6f);
 
-                // 4. Spotted Rolling Stock
-                activeScrollRect = SpottedStockSection.Build(builder, snapshot, savedAnchoredY);
+                // 4. Rolling Stock
+                activeScrollRect = RollingStockSection.Build(builder, snapshot, savedAnchoredY);
             }
             catch (Exception ex)
             {
-                ModEntryPoint.Log.Error(ex, $"Failed to render IndustryProductionWindow for '{snapshot.DisplayName}'.");
+                ModEntryPoint.Log.Error(ex, $"Failed to render FacilityWindow for '{snapshot.DisplayName}'.");
                 builder.AddLabel("<color=#EF5350><b>Error rendering window content.</b> Check Player.log for details.</color>");
             }
         }

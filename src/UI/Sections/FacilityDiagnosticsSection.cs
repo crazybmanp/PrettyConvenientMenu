@@ -5,7 +5,7 @@ namespace PrettyConvenientMenu.UI.Sections
 {
     internal static class FacilityDiagnosticsSection
     {
-        public static void Build(UIPanelBuilder builder, IndustrySnapshot snapshot)
+        public static void Build(UIPanelBuilder builder, FacilitySnapshot snapshot)
         {
             if (!string.IsNullOrEmpty(snapshot.DiagnosticAlert))
             {

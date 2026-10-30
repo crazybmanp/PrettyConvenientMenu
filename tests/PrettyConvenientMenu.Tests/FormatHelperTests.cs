@@ -84,5 +84,92 @@ namespace PrettyConvenientMenu.Tests
             Assert.AreEqual("~2h 05m", FormatHelper.FormatDuration(TimeSpan.FromMinutes(125)));
             Assert.AreEqual("~8d 0h", FormatHelper.FormatDuration(TimeSpan.FromHours(192)));
         }
+
+        // =========================================================================
+        // Spur Table Presentation Tests (Repair Tracks & MOW Equipment)
+        // =========================================================================
+
+        [Test]
+        public void FormatRepairCells_WithDamagedCar_ShowsConditionAndPartsDemand()
+        {
+            // Damaged car undergoing repair/overhaul: shows condition % and parts demand weight (e.g. 29.3T)
+            var car = new PrettyConvenientMenu.Data.RollingStock.SpottedCarInfo
+            {
+                CustomLoadString = "20%",
+                CurrentAmount = 58600f // 29.3 Tons of parts demand
+            };
+
+            (string cond, string parts) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatRepairCells(car);
+
+            Assert.AreEqual("20%", cond);
+            Assert.AreEqual("29.3T", parts);
+        }
+
+        [Test]
+        public void FormatRepairCells_WithServicedCar_ShowsFullConditionAndDashesForParts()
+        {
+            // Fully serviced car: shows 100% condition and no parts needed
+            var car = new PrettyConvenientMenu.Data.RollingStock.SpottedCarInfo
+            {
+                CustomLoadString = "100%",
+                StatusState = PrettyConvenientMenu.Data.RollingStock.CarStatusState.Serviced
+            };
+
+            (string cond, string parts) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatRepairCells(car);
+
+            Assert.AreEqual("100%", cond);
+            Assert.AreEqual("--", parts);
+        }
+
+        [Test]
+        public void FormatRepairCells_WithInboundPartsBoxcar_ShowsDashesForConditionAndCargoLoadForParts()
+        {
+            // Boxcar spotted on repair track to deliver parts: condition is N/A (--), parts column shows incoming cargo payload with + prefix
+            var car = new PrettyConvenientMenu.Data.RollingStock.SpottedCarInfo
+            {
+                CurrentAmount = 99800f,
+                CapacityAmount = 100000f,
+                Units = LoadUnits.Pounds
+            };
+
+            (string cond, string parts) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatRepairCells(car);
+
+            Assert.AreEqual("--", cond);
+            Assert.AreEqual("+49.9T (100%)", parts);
+        }
+
+        [Test]
+        public void FormatTransferCells_WithMowEmptyCar_ShowsEmptyAndDashesForRate()
+        {
+            // MOW Yard empty equipment: shows "Empty" and "--"
+            var car = new PrettyConvenientMenu.Data.RollingStock.SpottedCarInfo
+            {
+                CurrentAmount = 0f
+            };
+
+            (string load, string rate) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatTransferCells(
+                car, PrettyConvenientMenu.Data.Facilities.IndustryFacilityType.MaintenanceOfWay);
+
+            Assert.AreEqual("Empty", load);
+            Assert.AreEqual("--", rate);
+        }
+
+        [Test]
+        public void FormatTransferCells_WithMowLoadedCar_ShowsWeightAndCargoName()
+        {
+            // MOW Yard loaded equipment: shows formatted weight + cargo name (e.g. "8.1T Ballast", "5.6T Coal")
+            var car = new PrettyConvenientMenu.Data.RollingStock.SpottedCarInfo
+            {
+                CurrentAmount = 16200f, // 8.1 Tons
+                CargoName = "Ballast",
+                Units = LoadUnits.Pounds
+            };
+
+            (string load, string rate) = PrettyConvenientMenu.UI.Sections.SpurCellFormatter.FormatTransferCells(
+                car, PrettyConvenientMenu.Data.Facilities.IndustryFacilityType.MaintenanceOfWay);
+
+            Assert.AreEqual("8.1T Ballast", load);
+            Assert.AreEqual("--", rate);
+        }
     }
 }

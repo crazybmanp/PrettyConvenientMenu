@@ -89,8 +89,9 @@ namespace PrettyConvenientMenu.Data.Helpers
                 return true;
             }
 
+            // Base game RepairTrack.InForOverhaul: Tenders coupled at the front end (End.F) inherit the overhaul status of their attached locomotive.
             if (car.CarType.IsTender && car.TryGetAdjacentCar(car.EndToLogical(Car.End.F), out Car adjacent) && adjacent != null)
-            { //TODO: is it correct that tenders inherit the overhaul status of the locomotive, or will they be in for repair?
+            {
                 return TryGetProgramRepairMode(adjacent, repairTrack, opsController, out isOverhaul, depth + 1);
             }
 

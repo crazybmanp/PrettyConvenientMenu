@@ -1,6 +1,6 @@
 # A Pretty Convenient Menu
 
-Adds a *really convenient* **Production and Facility Monitor** menu to Railroader that is actually convenient to get to. Click on an industry building or track in the world (or open it from the Company window) to see storage buffers, production and consumption rates, locomotive service supplies, repair track part demand, and car-by-car loading/unloading progress.
+Adds a *really convenient* **Facility Monitor** menu to Railroader that is actually convenient to get to. Click on an industry building or track in the world (or open it from the Company window) to see storage buffers, production and consumption rates, locomotive service supplies, repair track part demand, and car-by-car loading/unloading progress.
 
 ---
 
@@ -10,7 +10,7 @@ You can open the monitor for an industry or service facility by clicking on its 
 
 - **Click on an Industry Building:** Left-click on an industry building, loading dock, coaling tower, diesel stand, or shop structure in the 3D world to open its monitor. The mod detects buildings by their proximity to an industry's spotting tracks. Almost any building close to a spotting track works; however, because some buildings in Railroader lack colliders, not all of them will respond to clicks.
 - **Click on a Spotting Track:** If a building doesn't respond, you can always left-click directly on the facility's spotting, loading, or service tracks. Clicks on rolling stock, switch stands, turntables, signals, and cab controls are automatically ignored so normal switching and train handling are never interrupted.
-- **From the Company Window:** Open the **Company** window, select the **Locations** tab, choose an industry, and click **Open Detailed Production Monitor** under the Production Monitor section.
+- **From the Company Window:** Open the **Company** window, select the **Locations** tab, choose an industry, and click **Open Facility Monitor** under the Facility Monitor section.
 
 ### Window Links & Navigation
 
@@ -47,9 +47,12 @@ You can open the monitor for an industry or service facility by clicking on its 
 
 ---
 
-## Spotted Rolling Stock Table
+## Rolling Stock Table
 
-Groups all stationary cars spotted at the facility by their specific spur or service track (plus an **Arriving** section for waybilled cars heading to locomotive service terminals, repair tracks, and MOW yards):
+Groups all stationary cars at the facility by the specific spur or service track they are sitting on (plus an **Arriving** section for waybilled cars heading to locomotive service terminals, repair tracks, and MOW yards). Each row shows the car, its status, two columns that depend on the kind of track, and an ETA:
+
+- **Transfer tracks** (commercial, team, house, MOW, and supply spurs) show **Load** and **Rate** columns.
+- **Repair tracks** show **Cond** (the car's condition) and **Parts** (repair parts needed, or arriving on supply cars) columns.
 
 - **Load & Fill Progress:** Shows each car's cargo type, current quantity vs. capacity (`Tons`, `Gallons`, `Pounds`, or `Qty`), and fill percentage (`%`).
 - **Live Transfer Rates:** Displays the per-minute loading or unloading rate for cars actively transferring cargo.

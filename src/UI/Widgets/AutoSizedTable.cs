@@ -7,6 +7,9 @@ namespace PrettyConvenientMenu.UI.Widgets
 {
     internal static class AutoSizedTable
     {
+        private const float DefaultColumnMaxCap = 150f;
+        private const float CellWidthSafetyPadding = 6f;
+
         public static void ApplyColumnWidths(
             List<RectTransform[]>? headers,
             List<RectTransform[]>? rows,
@@ -47,8 +50,8 @@ namespace PrettyConvenientMenu.UI.Widgets
                     }
                 }
 
-                float maxCap = (columnMaxCaps != null && col < columnMaxCaps.Length) ? columnMaxCaps[col] : 150f;
-                colMinWidths[col] = Mathf.Min(Mathf.Ceil(maxW) + 6f, maxCap);
+                float maxCap = (columnMaxCaps != null && col < columnMaxCaps.Length) ? columnMaxCaps[col] : DefaultColumnMaxCap;
+                colMinWidths[col] = Mathf.Min(Mathf.Ceil(maxW) + CellWidthSafetyPadding, maxCap);
             }
 
             for (int col = 0; col < colCount; col++)

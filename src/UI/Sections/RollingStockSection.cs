@@ -17,8 +17,31 @@ namespace PrettyConvenientMenu.UI.Sections
     /// </summary>
     internal static class RollingStockSection
     {
-        private static readonly float[] ColumnShares = new float[5] { 2.0f, 1.5f, 1.4f, 1.4f, 1.0f };
-        private static readonly float[] ColumnMaxCaps = new float[5] { 160f, 140f, 140f, 140f, 80f };
+        private const int ColumnCount = 5;
+
+        // Relative flexible width shares for the 5 columns: [Car, Status, Load/Cond, Rate/Parts, ETA]
+        private static readonly float[] ColumnShares = new float[ColumnCount] { 2.0f, 1.5f, 1.4f, 1.4f, 1.0f };
+
+        // Maximum initial text-fitted width caps (px) per column before flexible expansion
+        private static readonly float[] ColumnMaxCaps = new float[ColumnCount] { 160f, 140f, 140f, 140f, 80f };
+
+        // Scroll content right-edge padding (px):
+        // - BaseScrollRightPadding: matches the visual gap on the left side of the window when no scrollbar is shown.
+        // - ScrollbarInsetWidth: horizontal space occupied by the game's vertical scrollbar handle inside the content rect.
+        // - ActiveScrollRightPadding: preserves the same BaseScrollRightPadding visual gap to the left of the scrollbar handle.
+        private const int BaseScrollRightPadding = 2;
+        private const int ScrollbarInsetWidth = 10;
+        private const int ActiveScrollRightPadding = BaseScrollRightPadding + ScrollbarInsetWidth;
+        private const float ScrollbarOverflowTolerance = 0.5f;
+        private const float ScrollPositionRestoreEpsilon = 0.01f;
+
+        // Table spacing constants (px)
+        private const float ColumnSpacing = 4f;
+        private const float RowSpacing = 3f;
+        private const float SpurTitleBottomSpacing = 4f;
+        private const float EmptyTrackBottomSpacing = 8f;
+        private const float GroupBottomSpacing = 12f;
+        private const int InitialRowCapacity = 32;
 
         public static ScrollRect? Build(
             UIPanelBuilder builder,
@@ -40,7 +63,7 @@ namespace PrettyConvenientMenu.UI.Sections
                 RectTransform scrollRt = b.VScrollView(scrollBuilder =>
                 {
                     List<RectTransform[]> allHeaders = new List<RectTransform[]>(groupCount);
-                    List<RectTransform[]> allRows = new List<RectTransform[]>(32);
+                    List<RectTransform[]> allRows = new List<RectTransform[]>(InitialRowCapacity);
 
                     for (int g = 0; g < groupCount; g++)
                     {
@@ -58,10 +81,40 @@ namespace PrettyConvenientMenu.UI.Sections
                 activeScrollRect = scrollRt.GetComponent<ScrollRect>();
                 if (activeScrollRect == null) return;
 
-                ConfigureScrollPaddingAndPosition(activeScrollRect, snapshot, savedAnchoredY);
+                InitializeScrollContent(activeScrollRect, savedAnchoredY);
             });
 
             return activeScrollRect;
+        }
+
+        /// <summary>
+        /// Updates the scroll content's right padding based on whether the content height overflows the viewport,
+        /// keeping the table's right gap identical against either the window border or the scrollbar handle.
+        /// </summary>
+        public static void UpdateScrollPadding(ScrollRect? scrollRect, RectTransform? windowContentRoot)
+        {
+            if (scrollRect == null || scrollRect.content == null) return;
+
+            if (windowContentRoot != null)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(windowContentRoot);
+            }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(scrollRect.content);
+
+            VerticalLayoutGroup vlg = scrollRect.content.GetComponent<VerticalLayoutGroup>();
+            if (vlg == null) return;
+
+            RectTransform viewRt = scrollRect.viewport != null
+                ? scrollRect.viewport
+                : (RectTransform)scrollRect.transform;
+            bool scrollbarActive = scrollRect.content.rect.height > viewRt.rect.height + ScrollbarOverflowTolerance;
+
+            int targetPadding = scrollbarActive ? ActiveScrollRightPadding : BaseScrollRightPadding;
+            if (vlg.padding.right != targetPadding)
+            {
+                vlg.padding.right = targetPadding;
+                LayoutRebuilder.ForceRebuildLayoutImmediate(scrollRect.content);
+            }
         }
 
         private static void RenderCarGroup(
@@ -76,23 +129,27 @@ namespace PrettyConvenientMenu.UI.Sections
             string spurTitle = group.IsEnRoute
                 ? $"<color={headerColor}><b>Arriving: {group.TrackName}</b></color>  ({direction})"
                 : $"<color={headerColor}><b>Spur: {group.TrackName}</b></color>  ({direction})";
-            scrollBuilder.AddLabel(spurTitle);
-            scrollBuilder.Spacer(4f);
+            scrollBuilder.AddLabel(spurTitle, t =>
+            {
+                t.textWrappingMode = TextWrappingModes.NoWrap;
+                t.overflowMode = TextOverflowModes.Ellipsis;
+            });
+            scrollBuilder.Spacer(SpurTitleBottomSpacing);
 
             if (group.Cars.Count == 0)
             {
                 scrollBuilder.AddLabel("<i>No cars spotted on this track</i>");
-                scrollBuilder.Spacer(8f);
+                scrollBuilder.Spacer(EmptyTrackBottomSpacing);
                 return;
             }
 
             bool isRepairSpur = group.Role is CarGroupRole.LocomotiveRepair or CarGroupRole.EnRouteRepair;
 
             // Render Header
-            RectTransform[] headerCells = new RectTransform[5];
+            RectTransform[] headerCells = new RectTransform[ColumnCount];
             scrollBuilder.HStack(h =>
             {
-                h.ConfigureLayout(4f);
+                h.ConfigureLayout(ColumnSpacing);
                 string col3Title = isRepairSpur ? "<b>Cond</b>" : "<b>Load</b>";
                 string col4Title = isRepairSpur ? "<b>Parts</b>" : "<b>Rate</b>";
                 RenderHeaders(h, headerCells, col3Title, col4Title);
@@ -100,25 +157,25 @@ namespace PrettyConvenientMenu.UI.Sections
             allHeaders.Add(headerCells);
 
             scrollBuilder.AddHRule();
-            scrollBuilder.Spacer(3f);
+            scrollBuilder.Spacer(RowSpacing);
 
             // Render Car Rows
             foreach (SpottedCarInfo car in group.Cars)
             {
-                RectTransform[] rowCells = new RectTransform[5];
+                RectTransform[] rowCells = new RectTransform[ColumnCount];
 
                 scrollBuilder.HStack(row =>
                 {
-                    row.ConfigureLayout(4f);
+                    row.ConfigureLayout(ColumnSpacing);
                     RenderRow(row, car, isRepairSpur, facilityType, rowCells);
                 });
 
                 allRows.Add(rowCells);
-                scrollBuilder.Spacer(3f);
+                scrollBuilder.Spacer(RowSpacing);
             }
 
             scrollBuilder.AddHRule();
-            scrollBuilder.Spacer(12f);
+            scrollBuilder.Spacer(GroupBottomSpacing);
         }
 
         private static void RenderHeaders(UIPanelBuilder row, RectTransform[] cells, string col3Title, string col4Title)
@@ -192,31 +249,18 @@ namespace PrettyConvenientMenu.UI.Sections
             });
         }
 
-        private static void ConfigureScrollPaddingAndPosition(
-            ScrollRect activeScrollRect,
-            FacilitySnapshot snapshot,
-            float savedAnchoredY)
+        private static void InitializeScrollContent(ScrollRect activeScrollRect, float savedAnchoredY)
         {
-            float scrollbarWidth = 20f;
-            if (activeScrollRect.verticalScrollbar != null)
-            {
-                RectTransform? sbarRt = activeScrollRect.verticalScrollbar.transform as RectTransform;
-                if (sbarRt != null && sbarRt.rect.width > 0f)
-                {
-                    scrollbarWidth = sbarRt.rect.width;
-                }
-            }
-
-            bool isScrollable = snapshot.CarGroups.Count > 1 || snapshot.TotalCarCount >= 3;
             if (activeScrollRect.content == null) return;
 
+            // VScrollView assigns a shared static RectOffset to every scroll view; clone it so per-window padding is isolated.
             VerticalLayoutGroup vlg = activeScrollRect.content.GetComponent<VerticalLayoutGroup>();
             if (vlg != null)
             {
-                vlg.padding.right = isScrollable ? (int)Mathf.Ceil(scrollbarWidth + 4f) : 6;
+                vlg.padding = new RectOffset(vlg.padding.left, BaseScrollRightPadding, vlg.padding.top, vlg.padding.bottom);
             }
 
-            if (Mathf.Abs(savedAnchoredY) > 0.01f)
+            if (Mathf.Abs(savedAnchoredY) > ScrollPositionRestoreEpsilon)
             {
                 activeScrollRect.content.anchoredPosition = new Vector2(activeScrollRect.content.anchoredPosition.x, savedAnchoredY);
             }

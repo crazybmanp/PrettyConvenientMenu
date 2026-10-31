@@ -16,20 +16,26 @@ namespace PrettyConvenientMenu.UI.Windows
     [RequireComponent(typeof(Window))]
     public class FacilityWindow : BuilderWindowBase<FacilityWindow>
     {
+        private static readonly Vector2Int DefaultWindowSize = new Vector2Int(680, 620);
+        private static readonly Vector2Int MinWindowSize = new Vector2Int(560, 400);
+
+        private const float RefreshIntervalSeconds = 3.0f;
+        private const int MaxCascadeSteps = 8;
+        private const float CascadeStepOffset = 15f;
+        private const float ScrollPositionRestoreEpsilon = 0.01f;
+        private const float DiagnosticsBottomSpacing = 6f;
+
         private static readonly Dictionary<string, FacilityWindow> ActiveWindows = new Dictionary<string, FacilityWindow>();
+        private static readonly WaitForSeconds RefreshInterval = new WaitForSeconds(RefreshIntervalSeconds);
         private static int cascadeCount = 0;
 
         public override string Identifier => identifier;
-        public override WindowConfig Config => WindowConfig.Resizable(
-            new Vector2Int(680, 620),
-            new Vector2Int(560, 400)
-        );
+        public override WindowConfig Config => WindowConfig.Resizable(DefaultWindowSize, MinWindowSize);
 
         private string identifier = "PrettyConvenientMenu.Facility";
         private readonly FacilitySnapshot snapshot = new FacilitySnapshot();
         private Industry? currentIndustry;
         private Coroutine? refreshCoroutine;
-        private static readonly WaitForSeconds RefreshInterval = new WaitForSeconds(3.0f);
         private ScrollRect? activeScrollRect;
         private float savedScrollPos = 1.0f;
         private float savedAnchoredY = 0f;
@@ -62,7 +68,7 @@ namespace PrettyConvenientMenu.UI.Windows
 
                 if (window.Window == null) return window;
                 Vector2 basePos = window.Window.GetPosition();
-                float offset = (cascadeCount % 8) * 15f;
+                float offset = (cascadeCount % MaxCascadeSteps) * CascadeStepOffset;
                 cascadeCount++;
                 if (offset > 0.001f)
                 {
@@ -85,12 +91,18 @@ namespace PrettyConvenientMenu.UI.Windows
 
             FacilityDataService.PopulateSnapshot(industry, snapshot);
             Show();
+            RollingStockSection.UpdateScrollPadding(activeScrollRect, Window?.contentRectTransform);
 
             if (refreshCoroutine != null)
             {
                 StopCoroutine(refreshCoroutine);
             }
             refreshCoroutine = StartCoroutine(PeriodicRefreshLoop());
+        }
+
+        private void OnRectTransformDimensionsChange()
+        {
+            RollingStockSection.UpdateScrollPadding(activeScrollRect, Window?.contentRectTransform);
         }
 
         protected override void OnWindowDisable()
@@ -122,6 +134,9 @@ namespace PrettyConvenientMenu.UI.Windows
 
         private IEnumerator PeriodicRefreshLoop()
         {
+            yield return null;
+            RollingStockSection.UpdateScrollPadding(activeScrollRect, Window?.contentRectTransform);
+
             while (Window != null && Window.IsShown)
             {
                 yield return RefreshInterval;
@@ -140,43 +155,14 @@ namespace PrettyConvenientMenu.UI.Windows
 
                     if (activeScrollRect != null && activeScrollRect.content != null)
                     {
-                        RectTransform rootRt = GetComponent<RectTransform>();
-                        if (rootRt != null)
-                        {
-                            LayoutRebuilder.ForceRebuildLayoutImmediate(rootRt);
-                        }
-                        Canvas.ForceUpdateCanvases();
-
-                        // Dynamically update right padding if scrollbar is present or not
-                        VerticalLayoutGroup vlg = activeScrollRect.content.GetComponent<VerticalLayoutGroup>();
-                        if (vlg != null)
-                        {
-                            float scrollbarWidth = 20f;
-                            if (activeScrollRect.verticalScrollbar != null)
-                            {
-                                RectTransform? sbarRt = activeScrollRect.verticalScrollbar.transform as RectTransform;
-                                if (sbarRt != null && sbarRt.rect.width > 0f)
-                                {
-                                    scrollbarWidth = sbarRt.rect.width;
-                                }
-                            }
-
-                            float viewH = activeScrollRect.viewport != null ? activeScrollRect.viewport.rect.height : 240f;
-                            bool scrollbarActive = activeScrollRect.content.rect.height > viewH;
-                            int targetPad = scrollbarActive ? (int)Mathf.Ceil(scrollbarWidth + 4f) : 6;
-                            if (vlg.padding.right != targetPad)
-                            {
-                                vlg.padding.right = targetPad;
-                                LayoutRebuilder.ForceRebuildLayoutImmediate(activeScrollRect.content);
-                            }
-                        }
+                        RollingStockSection.UpdateScrollPadding(activeScrollRect, Window?.contentRectTransform);
 
                         if (!float.IsNaN(savedScrollPos) && !float.IsInfinity(savedScrollPos))
                         {
                             activeScrollRect.verticalNormalizedPosition = Mathf.Clamp01(savedScrollPos);
                         }
 
-                        if (Mathf.Abs(savedAnchoredY) > 0.01f)
+                        if (Mathf.Abs(savedAnchoredY) > ScrollPositionRestoreEpsilon)
                         {
                             activeScrollRect.content.anchoredPosition = new Vector2(activeScrollRect.content.anchoredPosition.x, savedAnchoredY);
                         }
@@ -213,7 +199,7 @@ namespace PrettyConvenientMenu.UI.Windows
                 btnRt.anchorMin = new Vector2(1f, 1f);
                 btnRt.anchorMax = new Vector2(1f, 1f);
                 btnRt.pivot = new Vector2(1f, 1f);
-                btnRt.anchoredPosition = new Vector2(0f, 0f);
+                btnRt.anchoredPosition = Vector2.zero;
 
                 // 1. Facility-specific Status & Process Header
                 FacilityHeaderSection.Build(builder, snapshot);
@@ -223,7 +209,7 @@ namespace PrettyConvenientMenu.UI.Windows
 
                 // 3. Bottleneck / Facility Diagnostics
                 FacilityDiagnosticsSection.Build(builder, snapshot);
-                builder.Spacer(6f);
+                builder.Spacer(DiagnosticsBottomSpacing);
 
                 // 4. Rolling Stock
                 activeScrollRect = RollingStockSection.Build(builder, snapshot, savedAnchoredY);

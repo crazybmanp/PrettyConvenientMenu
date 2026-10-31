@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Model;
 using Model.Ops;
 using Model.Ops.Definition;
@@ -77,6 +78,64 @@ namespace PrettyConvenientMenu.Data.Helpers
             return waybill.Value.Origin.HasValue
                 && !string.IsNullOrEmpty(waybill.Value.Origin.Value.Identifier)
                 && waybill.Value.Origin.Value.Identifier.StartsWith(industry.identifier, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// A captive loader does not order empties. A captive unloader does not order loads.
+        /// Those are the two auto-destination stops the game offers for captive service.
+        /// </summary>
+        public static bool IsCaptiveServiceComponent(IndustryComponent? component)
+        {
+            switch (component)
+            {
+                case IndustryLoaderBase loader:
+                    return !loader.orderEmpties;
+                case IndustryUnloader unloader:
+                    return !unloader.orderLoads;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// True when a captive component on this spur is the car's "when loaded" or "when empty" auto destination.
+        /// </summary>
+        public static bool IsCaptiveAutoStop(
+            IReadOnlyList<IndustryComponent>? spurComponents,
+            string? loadedAutoDestinationId,
+            string? emptyAutoDestinationId)
+        {
+            if (spurComponents == null)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(loadedAutoDestinationId) && string.IsNullOrEmpty(emptyAutoDestinationId))
+            {
+                return false;
+            }
+
+            foreach (IndustryComponent component in spurComponents)
+            {
+                if (!IsCaptiveServiceComponent(component))
+                {
+                    continue;
+                }
+
+                string identifier = component.Identifier;
+                if (string.IsNullOrEmpty(identifier))
+                {
+                    continue;
+                }
+
+                if (string.Equals(identifier, loadedAutoDestinationId, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(identifier, emptyAutoDestinationId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

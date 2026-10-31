@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Model;
 using Model.Ops;
+using Model.Ops.AutoDestinations;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.Helpers;
@@ -69,8 +70,9 @@ namespace PrettyConvenientMenu.Data.RollingStock
 
             IOpsCar opsCar = carInfo.OpsCar;
 
-            // Step 2: Finished Work Here (Ordered away from this facility and awaiting pickup)
-            if (CarTrackingHelper.IsWaybilledFromHere(opsCar.Waybill, industry))
+            // Step 2: Finished Work Here (Ordered away, or released onto the car's other captive auto destination)
+            if (CarTrackingHelper.IsWaybilledFromHere(opsCar.Waybill, industry)
+                || (opsCar.Waybill.HasValue && IsAtCaptiveAutoStop(carInfo.Car, componentsOnSpur, opsController)))
             {
                 carInfo.MarkReady();
                 return;
@@ -97,6 +99,37 @@ namespace PrettyConvenientMenu.Data.RollingStock
             // Step 4: Passive Stock (Stored yard stock vs Parked commercial empties)
             string passiveAction = role is CarGroupRole.MowMaterialHandling or CarGroupRole.MowStaging ? "Stored" : "Parked";
             carInfo.MarkPassive(passiveAction);
+        }
+
+        /// <summary>
+        /// Captive service leaves the waybill origin blank and points the car at its other auto destination.
+        /// The loaded stop is <see cref="AutoDestinationType.Load"/> and the empty stop is <see cref="AutoDestinationType.Empty"/>.
+        /// </summary>
+        private static bool IsAtCaptiveAutoStop(
+            Car? car,
+            IReadOnlyList<IndustryComponent> componentsOnSpur,
+            OpsController opsController)
+        {
+            if (car == null)
+            {
+                return false;
+            }
+
+            return CarTrackingHelper.IsCaptiveAutoStop(
+                componentsOnSpur,
+                AutoDestinationId(car, AutoDestinationType.Load, opsController),
+                AutoDestinationId(car, AutoDestinationType.Empty, opsController));
+        }
+
+        private static string? AutoDestinationId(Car car, AutoDestinationType destinationType, OpsController opsController)
+        {
+            ResolvedAutoDestination? destination = car.GetAutoDestination(destinationType, opsController);
+            if (!destination.HasValue)
+            {
+                return null;
+            }
+
+            return destination.Value.Position.Identifier;
         }
 
         private static bool TryClassifyComponentWork(

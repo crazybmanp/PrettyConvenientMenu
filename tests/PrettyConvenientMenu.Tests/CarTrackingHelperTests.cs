@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Model.Ops;
 using Model.Ops.Definition;
 using NUnit.Framework;
@@ -120,6 +121,66 @@ namespace PrettyConvenientMenu.Tests
             Waybill progWaybill = new Waybill(default, null, progPos, 100, false, "tag", 3);
 
             Assert.IsTrue(CarTrackingHelper.IsWaybilledHere(progWaybill, industry, prog), "Car waybilled to progression component must be accepted.");
+        }
+
+        [Test]
+        public void IsCaptiveAutoStop_WhenLoadedStopIsThisUnloader_ReturnsTrue()
+        {
+            Industry industry = new Industry { identifier = "whittier-sawmill" };
+            IndustryUnloader logs = new IndustryUnloader { Industry = industry, subIdentifier = "logs", orderLoads = false };
+            industry.Components.Add(logs);
+
+            bool result = CarTrackingHelper.IsCaptiveAutoStop(
+                new List<IndustryComponent> { logs },
+                loadedAutoDestinationId: logs.Identifier,
+                emptyAutoDestinationId: "connelly0.l1");
+
+            Assert.IsTrue(result);
+        }
+
+        [Test]
+        public void IsCaptiveAutoStop_WhenEmptyStopIsThisLoader_ReturnsTrue()
+        {
+            Industry industry = new Industry { identifier = "connelly0" };
+            IndustryLoader logs = new IndustryLoader { Industry = industry, subIdentifier = "l1", orderEmpties = false };
+            industry.Components.Add(logs);
+
+            bool result = CarTrackingHelper.IsCaptiveAutoStop(
+                new List<IndustryComponent> { logs },
+                loadedAutoDestinationId: "whittier-sawmill.logs",
+                emptyAutoDestinationId: logs.Identifier);
+
+            Assert.IsTrue(result);
+        }
+
+        [Test]
+        public void IsCaptiveAutoStop_WhenComponentStillOrdersCars_ReturnsFalse()
+        {
+            Industry industry = new Industry { identifier = "whittier-sawmill" };
+            IndustryUnloader logs = new IndustryUnloader { Industry = industry, subIdentifier = "logs", orderLoads = true };
+            industry.Components.Add(logs);
+
+            bool result = CarTrackingHelper.IsCaptiveAutoStop(
+                new List<IndustryComponent> { logs },
+                loadedAutoDestinationId: logs.Identifier,
+                emptyAutoDestinationId: "connelly0.l1");
+
+            Assert.IsFalse(result);
+        }
+
+        [Test]
+        public void IsCaptiveAutoStop_WhenCarAutoStopsAreElsewhere_ReturnsFalse()
+        {
+            Industry industry = new Industry { identifier = "whittier-sawmill" };
+            IndustryUnloader logs = new IndustryUnloader { Industry = industry, subIdentifier = "logs", orderLoads = false };
+            industry.Components.Add(logs);
+
+            bool result = CarTrackingHelper.IsCaptiveAutoStop(
+                new List<IndustryComponent> { logs },
+                loadedAutoDestinationId: "sylva-ties.logs",
+                emptyAutoDestinationId: "connelly0.l1");
+
+            Assert.IsFalse(result);
         }
     }
 }

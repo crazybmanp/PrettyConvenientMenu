@@ -59,6 +59,7 @@ Copy-Item -Path "$PSScriptRoot\Info.json" -Destination $PluginFolder
 if (Test-Path "$PSScriptRoot\README.md") { Copy-Item -Path "$PSScriptRoot\README.md" -Destination $PluginFolder }
 if (Test-Path "$PSScriptRoot\CHANGELOG.md") { Copy-Item -Path "$PSScriptRoot\CHANGELOG.md" -Destination $PluginFolder }
 if (Test-Path "$PSScriptRoot\LICENSE") { Copy-Item -Path "$PSScriptRoot\LICENSE" -Destination $PluginFolder }
+if (Test-Path "$PSScriptRoot\THIRD-PARTY-NOTICES.md") { Copy-Item -Path "$PSScriptRoot\THIRD-PARTY-NOTICES.md" -Destination $PluginFolder }
 
 Copy-Item -Path "$PSScriptRoot\Assemblies\${ProjectName}.dll" -Destination $PluginFolder
 if (Test-Path "$PSScriptRoot\Assemblies\${ProjectName}.pdb") {

@@ -214,35 +214,31 @@ namespace PrettyConvenientMenu.Tests
         }
 
         [Test]
-        public void MultiLoadQueue_StorageLoader_SequencesLoadingCarsAcrossLoads()
+        public void StorageLoader_MultipleCarsForSameCommodity_LoadInParallel()
         {
             Industry industry = new Industry { identifier = "mow_depot" };
             StorageLoader loader = new StorageLoader { Industry = industry, subIdentifier = "loader" };
             industry.Components.Add(loader);
 
             Load ballast = CreateTestLoad("rr/ballast", "Ballast");
-            Load ties = CreateTestLoad("rr/ties", "Ties");
-
             OpsCarPosition pos = new OpsCarPosition("MOW Loader", loader.Identifier, null!);
             Waybill waybill1 = new Waybill(default, null, pos, 100, false, "rr/ballast", 3);
-            Waybill waybill2 = new Waybill(default, null, pos, 100, false, "rr/ties", 3);
+            Waybill waybill2 = new Waybill(default, null, pos, 100, false, "rr/ballast", 3);
 
-            // Empty hopper waiting to load ballast
             FakeOpsCar opsCar1 = new FakeOpsCar
             {
                 Id = "CAR1",
-                DisplayName = "HOPPER 1",
+                DisplayName = "NC&StL 3638",
                 Waybill = waybill1,
                 CurrentLoad = null,
                 CurrentQuantity = 0f,
                 MaxCapacity = 1000f
             };
 
-            // Empty flat waiting to load ties
             FakeOpsCar opsCar2 = new FakeOpsCar
             {
                 Id = "CAR2",
-                DisplayName = "FLAT 1",
+                DisplayName = "SYT 20004",
                 Waybill = waybill2,
                 CurrentLoad = null,
                 CurrentQuantity = 0f,
@@ -253,30 +249,99 @@ namespace PrettyConvenientMenu.Tests
             SpottedCarInfo carInfo2 = new SpottedCarInfo(null, opsCar2, 1);
             List<SpottedCarInfo> trackCars = new List<SpottedCarInfo> { carInfo1, carInfo2 };
 
-            bool activeCarAssigned = false;
+            bool activeBatchAssigned = false;
             float accumulatedMinutes = 0f;
 
-            // Car 1 (Ballast): 1000 to load / 10 = 100 mins.
+            // Rate: 10 units/min. Buffer available: 5000.
+            // Both cars load in parallel!
+            // Car 1: 1000 / 10 = 100 mins.
+            // Car 2: 500 / 10 = 50 mins.
             TransferQueueHelper.SequenceQueue(
                 trackCars, loader, ballast, industry,
-                bufferAvailable: 2000f, nominalRatePerMin: 10f, isUnload: false,
-                matchingBuffer: null, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true);
+                bufferAvailable: 5000f, nominalRatePerMin: 10f, isUnload: false,
+                matchingBuffer: null, ref activeBatchAssigned, ref accumulatedMinutes,
+                multiLoadComponent: true, allowParallelTransfer: true);
 
-            Assert.IsTrue(activeCarAssigned);
+            Assert.IsTrue(activeBatchAssigned);
             Assert.AreEqual(CarStatus.ActiveTransfer, carInfo1.Status);
             Assert.AreEqual("Loading", carInfo1.StatusDetail);
+            Assert.AreEqual(10f, carInfo1.TransferRatePerMinute);
             Assert.AreEqual(TimeSpan.FromMinutes(100), carInfo1.EstimatedTimeToCompletion);
 
-            // Car 2 (Ties): 500 to load / 10 = 50 mins.
-            // Should be Queued with ETA = 100 + 50 = 150 mins.
+            Assert.AreEqual(CarStatus.ActiveTransfer, carInfo2.Status);
+            Assert.AreEqual("Loading", carInfo2.StatusDetail);
+            Assert.AreEqual(10f, carInfo2.TransferRatePerMinute);
+            Assert.AreEqual(TimeSpan.FromMinutes(50), carInfo2.EstimatedTimeToCompletion);
+
+            // Batch takes max(100, 50) = 100 mins
+            Assert.AreEqual(100f, accumulatedMinutes);
+        }
+
+        [Test]
+        public void StorageLoader_SubsequentCommodity_WaitsForActiveBatch()
+        {
+            Industry industry = new Industry { identifier = "mow_depot" };
+            StorageLoader loader = new StorageLoader { Industry = industry, subIdentifier = "loader" };
+            industry.Components.Add(loader);
+
+            Load ballast = CreateTestLoad("rr/ballast", "Ballast");
+            Load timbers = CreateTestLoad("rr/timbers", "Wooden Bridge Timbers");
+
+            OpsCarPosition pos = new OpsCarPosition("MOW Loader", loader.Identifier, null!);
+            Waybill waybill1 = new Waybill(default, null, pos, 100, false, "rr/ballast", 3);
+            Waybill waybill2 = new Waybill(default, null, pos, 100, false, "rr/timbers", 3);
+
+            FakeOpsCar opsCar1 = new FakeOpsCar
+            {
+                Id = "CAR1",
+                DisplayName = "BALLAST HOPPER",
+                Waybill = waybill1,
+                CurrentLoad = null,
+                CurrentQuantity = 0f,
+                MaxCapacity = 600f
+            };
+
+            FakeOpsCar opsCar2 = new FakeOpsCar
+            {
+                Id = "CAR2",
+                DisplayName = "TIMBERS FLAT",
+                Waybill = waybill2,
+                CurrentLoad = null,
+                CurrentQuantity = 0f,
+                MaxCapacity = 400f
+            };
+
+            SpottedCarInfo carInfo1 = new SpottedCarInfo(null, opsCar1, 0);
+            SpottedCarInfo carInfo2 = new SpottedCarInfo(null, opsCar2, 1);
+            List<SpottedCarInfo> trackCars = new List<SpottedCarInfo> { carInfo1, carInfo2 };
+
+            bool activeBatchAssigned = false;
+            float accumulatedMinutes = 0f;
+
+            // Commodity 1 (Ballast): 600 / 10 = 60 mins
             TransferQueueHelper.SequenceQueue(
-                trackCars, loader, ties, industry,
-                bufferAvailable: 2000f, nominalRatePerMin: 10f, isUnload: false,
-                matchingBuffer: null, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true);
+                trackCars, loader, ballast, industry,
+                bufferAvailable: 5000f, nominalRatePerMin: 10f, isUnload: false,
+                matchingBuffer: null, ref activeBatchAssigned, ref accumulatedMinutes,
+                multiLoadComponent: true, allowParallelTransfer: true);
+
+            Assert.IsTrue(activeBatchAssigned);
+            Assert.AreEqual(CarStatus.ActiveTransfer, carInfo1.Status);
+            Assert.AreEqual(TimeSpan.FromMinutes(60), carInfo1.EstimatedTimeToCompletion);
+            Assert.AreEqual(60f, accumulatedMinutes);
+
+            // Commodity 2 (Timbers): 400 / 10 = 40 mins, waits for batch 1 (60 mins) -> ETA = 60 + 40 = 100 mins
+            TransferQueueHelper.SequenceQueue(
+                trackCars, loader, timbers, industry,
+                bufferAvailable: 5000f, nominalRatePerMin: 10f, isUnload: false,
+                matchingBuffer: null, ref activeBatchAssigned, ref accumulatedMinutes,
+                multiLoadComponent: true, allowParallelTransfer: true);
 
             Assert.AreEqual(CarStatus.Queued, carInfo2.Status);
             Assert.AreEqual("Queued", carInfo2.StatusDetail);
-            Assert.AreEqual(TimeSpan.FromMinutes(150), carInfo2.EstimatedTimeToCompletion);
+            Assert.AreEqual(TimeSpan.FromMinutes(100), carInfo2.EstimatedTimeToCompletion);
+            // After timbers batch completes, total accumulated = 60 + 40 = 100 mins
+            Assert.AreEqual(100f, accumulatedMinutes);
         }
 
         [Test]

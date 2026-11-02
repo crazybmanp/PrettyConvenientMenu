@@ -80,7 +80,13 @@ namespace PrettyConvenientMenu.UI.Sections
                 }
                 else
                 {
-                    loadStr = "Empty";
+                    bool isQueuedOrTransferring = car.Status == CarStatus.ActiveTransfer ||
+                                                  car.Status == CarStatus.Queued ||
+                                                  car.Status == CarStatus.Blocked;
+
+                    loadStr = (isQueuedOrTransferring && !string.IsNullOrEmpty(car.CargoName) && car.CargoName != "Cargo" && car.CargoName != "Material")
+                        ? $"Empty ({car.CargoName})"
+                        : "Empty";
                 }
             }
             else

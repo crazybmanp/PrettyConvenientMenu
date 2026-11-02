@@ -4,6 +4,7 @@
   "name": "A Pretty Convenient Menu",
   "author": "crazybmanp",
   "description": "A pretty convenient industry production and facility monitor for Railroader.",
+  "scope": "optional",
   "license": "MIT",
   "assemblies": [
     "PrettyConvenientMenu.dll"

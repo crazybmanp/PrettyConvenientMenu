@@ -9,7 +9,7 @@ using UnityEngine;
 namespace PrettyConvenientMenu.Data.Helpers
 {
     /// <summary>
-    /// FIFO transfer queue calculator for commercial loaders and unloaders.
+    /// Transfer queue calculator for commercial and maintenance-of-way loaders and unloaders.
     /// Determines active transfer rates, ETAs, and queue positions for spotted cars in-place.
     /// </summary>
     public static class TransferQueueHelper
@@ -95,7 +95,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                             float nominalRatePerMin = (entry.unloadRate * inLoad.NominalQuantityPerCarLoad) / 1440f;
                             BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, inLoad, isUnload: true);
 
-                            SequenceQueue(trackCars, storageUnloader, inLoad, industry, bufferAvailable, nominalRatePerMin, isUnload: true, matchingBuffer, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true);
+                            SequenceQueue(trackCars, storageUnloader, inLoad, industry, bufferAvailable, nominalRatePerMin, isUnload: true, matchingBuffer, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true, allowParallelTransfer: false);
                         }
                         break;
                     }
@@ -103,7 +103,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                     case StorageLoader storageLoader:
                     {
                         string? prefix = !storageLoader.sharedStorage ? storageLoader.subIdentifier : null;
-                        bool activeCarAssigned = false;
+                        bool activeBatchAssigned = false;
                         float accumulatedMinutes = 0f;
                         foreach (StorageLoader.LoadEntry entry in storageLoader.loads)
                         {
@@ -112,7 +112,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                             float nominalRatePerMin = (entry.carLoadRate * outLoad.NominalQuantityPerCarLoad) / 1440f;
                             BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
 
-                            SequenceQueue(trackCars, storageLoader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true);
+                            SequenceQueue(trackCars, storageLoader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer, ref activeBatchAssigned, ref accumulatedMinutes, multiLoadComponent: true, allowParallelTransfer: true);
                         }
                         break;
                     }
@@ -134,7 +134,7 @@ namespace PrettyConvenientMenu.Data.Helpers
             BufferInfo? matchingBuffer,
             bool multiLoadComponent = false)
         {
-            bool activeCarAssigned = false;
+            bool activeAssigned = false;
             float accumulatedMinutes = 0f;
             SequenceQueue(
                 trackCars,
@@ -145,14 +145,16 @@ namespace PrettyConvenientMenu.Data.Helpers
                 nominalRatePerMin,
                 isUnload,
                 matchingBuffer,
-                ref activeCarAssigned,
+                ref activeAssigned,
                 ref accumulatedMinutes,
-                multiLoadComponent);
+                multiLoadComponent,
+                allowParallelTransfer: false);
         }
 
         /// <summary>
         /// Sequences unclassified spotted cars at an unloader or loader into active, queued, or blocked states in-place,
         /// maintaining transfer state across multi-load component queues.
+        /// Supports sequential FIFO (default) and parallel batch transfer modes.
         /// </summary>
         public static void SequenceQueue(
             IReadOnlyList<SpottedCarInfo> trackCars,
@@ -163,9 +165,10 @@ namespace PrettyConvenientMenu.Data.Helpers
             float nominalRatePerMin,
             bool isUnload,
             BufferInfo? matchingBuffer,
-            ref bool activeCarAssigned,
+            ref bool activeAssigned,
             ref float accumulatedMinutes,
-            bool multiLoadComponent = false)
+            bool multiLoadComponent = false,
+            bool allowParallelTransfer = false)
         {
             workingCarList.Clear();
 
@@ -216,6 +219,8 @@ namespace PrettyConvenientMenu.Data.Helpers
                 ? (commBuf.DailyRate / 1440f)
                 : 0f;
 
+            float batchDuration = 0f;
+
             foreach (SpottedCarInfo carInfo in workingCarList)
             {
                 float remainingTransferAmount = isUnload ? carInfo.CurrentAmount : Mathf.Max(0f, carInfo.CapacityAmount - carInfo.CurrentAmount);
@@ -223,67 +228,80 @@ namespace PrettyConvenientMenu.Data.Helpers
                 if (remainingTransferAmount <= load.ZeroThreshold)
                 {
                     carInfo.MarkReady();
+                    continue;
                 }
-                else if (remainingBuffer > load.ZeroThreshold || continuousRatePerMin > 0.0001f)
+
+                if (remainingBuffer <= load.ZeroThreshold && continuousRatePerMin <= 0.0001f)
                 {
-                    float fromBuffer = (remainingBuffer > load.ZeroThreshold)
-                        ? Mathf.Min(remainingBuffer, remainingTransferAmount)
-                        : 0f;
-                    remainingBuffer = Mathf.Max(0f, remainingBuffer - fromBuffer);
+                    string action = isUnload ? "Buffer Full" : "Buffer Empty";
+                    carInfo.MarkBlocked(action);
+                    UpdateActiveBuffer(matchingBuffer, remainingTransferAmount, isUnload);
+                    continue;
+                }
 
-                    float carMinutes = 0f;
-                    if (fromBuffer > 0.0001f && nominalRatePerMin > 0.0001f)
-                    {
-                        carMinutes += fromBuffer / nominalRatePerMin;
-                    }
-                    float unbuffered = remainingTransferAmount - fromBuffer;
-                    if (unbuffered > 0.0001f && continuousRatePerMin > 0.0001f)
-                    {
-                        carMinutes += unbuffered / continuousRatePerMin;
-                    }
-                    accumulatedMinutes += carMinutes;
-                    TimeSpan? eta = TimeSpan.FromMinutes(accumulatedMinutes);
+                float fromBuffer = (remainingBuffer > load.ZeroThreshold)
+                    ? Mathf.Min(remainingBuffer, remainingTransferAmount)
+                    : 0f;
+                remainingBuffer = Mathf.Max(0f, remainingBuffer - fromBuffer);
 
-                    if (!activeCarAssigned)
-                    {
-                        activeCarAssigned = true;
-                        float currentRate = (fromBuffer > 0.0001f) ? nominalRatePerMin : continuousRatePerMin;
-                        string action = isUnload ? "Unloading" : "Loading";
-                        carInfo.MarkTransfer(currentRate, eta, action);
-                    }
-                    else
-                    {
-                        carInfo.MarkQueued(eta);
-                    }
+                float carMinutes = 0f;
+                if (fromBuffer > 0.0001f && nominalRatePerMin > 0.0001f)
+                {
+                    carMinutes += fromBuffer / nominalRatePerMin;
+                }
+                float unbuffered = remainingTransferAmount - fromBuffer;
+                if (unbuffered > 0.0001f && continuousRatePerMin > 0.0001f)
+                {
+                    carMinutes += unbuffered / continuousRatePerMin;
+                }
 
-                    if (matchingBuffer is not null)
+                if (carMinutes > batchDuration)
+                {
+                    batchDuration = carMinutes;
+                }
+
+                if (!activeAssigned)
+                {
+                    float currentRate = (fromBuffer > 0.0001f) ? nominalRatePerMin : continuousRatePerMin;
+                    string action = isUnload ? "Unloading" : "Loading";
+                    carInfo.MarkTransfer(currentRate, TimeSpan.FromMinutes(carMinutes), action);
+
+                    if (!allowParallelTransfer)
                     {
-                        if (isUnload)
-                        {
-                            matchingBuffer.ActiveInbound += remainingTransferAmount;
-                        }
-                        else
-                        {
-                            matchingBuffer.ActiveOutbound += remainingTransferAmount;
-                        }
+                        activeAssigned = true;
+                        accumulatedMinutes += carMinutes;
                     }
                 }
                 else
                 {
-                    string action = isUnload ? "Buffer Full" : "Buffer Empty";
-                    carInfo.MarkBlocked(action);
-                    if (matchingBuffer is not null)
+                    carInfo.MarkQueued(TimeSpan.FromMinutes(accumulatedMinutes + carMinutes));
+
+                    if (!allowParallelTransfer)
                     {
-                        if (isUnload)
-                        {
-                            matchingBuffer.ActiveInbound += remainingTransferAmount;
-                        }
-                        else
-                        {
-                            matchingBuffer.ActiveOutbound += remainingTransferAmount;
-                        }
+                        accumulatedMinutes += carMinutes;
                     }
                 }
+
+                UpdateActiveBuffer(matchingBuffer, remainingTransferAmount, isUnload);
+            }
+
+            if (allowParallelTransfer && batchDuration > 0f)
+            {
+                activeAssigned = true;
+                accumulatedMinutes += batchDuration;
+            }
+        }
+
+        private static void UpdateActiveBuffer(BufferInfo? matchingBuffer, float amount, bool isUnload)
+        {
+            if (matchingBuffer == null) return;
+            if (isUnload)
+            {
+                matchingBuffer.ActiveInbound += amount;
+            }
+            else
+            {
+                matchingBuffer.ActiveOutbound += amount;
             }
         }
     }

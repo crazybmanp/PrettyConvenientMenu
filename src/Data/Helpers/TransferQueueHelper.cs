@@ -84,6 +84,8 @@ namespace PrettyConvenientMenu.Data.Helpers
                     case StorageUnloader storageUnloader:
                     {
                         string? prefix = !storageUnloader.sharedStorage ? storageUnloader.subIdentifier : null;
+                        bool activeCarAssigned = false;
+                        float accumulatedMinutes = 0f;
                         foreach (StorageUnloader.LoadEntry entry in storageUnloader.loads)
                         {
                             if (entry.load is not { } inLoad) continue;
@@ -93,7 +95,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                             float nominalRatePerMin = (entry.unloadRate * inLoad.NominalQuantityPerCarLoad) / 1440f;
                             BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, inLoad, isUnload: true);
 
-                            SequenceQueue(trackCars, storageUnloader, inLoad, industry, bufferAvailable, nominalRatePerMin, isUnload: true, matchingBuffer, multiLoadComponent: true);
+                            SequenceQueue(trackCars, storageUnloader, inLoad, industry, bufferAvailable, nominalRatePerMin, isUnload: true, matchingBuffer, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true);
                         }
                         break;
                     }
@@ -101,6 +103,8 @@ namespace PrettyConvenientMenu.Data.Helpers
                     case StorageLoader storageLoader:
                     {
                         string? prefix = !storageLoader.sharedStorage ? storageLoader.subIdentifier : null;
+                        bool activeCarAssigned = false;
+                        float accumulatedMinutes = 0f;
                         foreach (StorageLoader.LoadEntry entry in storageLoader.loads)
                         {
                             if (entry.load is not { } outLoad) continue;
@@ -108,7 +112,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                             float nominalRatePerMin = (entry.carLoadRate * outLoad.NominalQuantityPerCarLoad) / 1440f;
                             BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
 
-                            SequenceQueue(trackCars, storageLoader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer, multiLoadComponent: true);
+                            SequenceQueue(trackCars, storageLoader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true);
                         }
                         break;
                     }
@@ -128,6 +132,39 @@ namespace PrettyConvenientMenu.Data.Helpers
             float nominalRatePerMin,
             bool isUnload,
             BufferInfo? matchingBuffer,
+            bool multiLoadComponent = false)
+        {
+            bool activeCarAssigned = false;
+            float accumulatedMinutes = 0f;
+            SequenceQueue(
+                trackCars,
+                component,
+                load,
+                industry,
+                bufferAvailable,
+                nominalRatePerMin,
+                isUnload,
+                matchingBuffer,
+                ref activeCarAssigned,
+                ref accumulatedMinutes,
+                multiLoadComponent);
+        }
+
+        /// <summary>
+        /// Sequences unclassified spotted cars at an unloader or loader into active, queued, or blocked states in-place,
+        /// maintaining transfer state across multi-load component queues.
+        /// </summary>
+        public static void SequenceQueue(
+            IReadOnlyList<SpottedCarInfo> trackCars,
+            IndustryComponent component,
+            Load load,
+            Industry industry,
+            float bufferAvailable,
+            float nominalRatePerMin,
+            bool isUnload,
+            BufferInfo? matchingBuffer,
+            ref bool activeCarAssigned,
+            ref float accumulatedMinutes,
             bool multiLoadComponent = false)
         {
             workingCarList.Clear();
@@ -178,8 +215,6 @@ namespace PrettyConvenientMenu.Data.Helpers
             float continuousRatePerMin = (matchingBuffer is CommercialBuffer commBuf && commBuf.DailyRate > 0.001f)
                 ? (commBuf.DailyRate / 1440f)
                 : 0f;
-            float accumulatedMinutes = 0f;
-            bool activeCarAssigned = false;
 
             foreach (SpottedCarInfo carInfo in workingCarList)
             {

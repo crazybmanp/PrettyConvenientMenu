@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+- Fixed MOW supply cars (ties, ballast, concrete) being incorrectly marked as Misspotted at IndustrySeller spurs like Scott Tie Plant and Rock Products (#4).
+- Added support for TeleportLoadingIndustry raw material mines (Alarka Copper Mines, Robinson Gap Coal, Nantahala Talc & Limestone): empty inbound tracks are now classified as loading spurs, queue ETAs are accurately projected from the mine's loading cycle, and buffer capacities are correctly reported.
+- Fixed MOW depot multi-load storage unloaders and parallel batch loaders reporting incorrect concurrent transfer stats or empty car cargo (#3).
+
 ## 0.2.0 - Refactoring and Bugfixes, with a small UI rebrand
 - Renamed the window to **Facility Monitor** (was "Production Monitor"); the Company window button is now **Open Facility Monitor**.
 - Rolling stock is now classified per track (spur) instead of per industry component, so every facility type shows its cars grouped by the track they are actually on.

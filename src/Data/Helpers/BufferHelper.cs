@@ -87,7 +87,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                 {
                     return Mathf.Max(0.001f, unloader.maxStorage);
                 }
-                if (comp is IndustryLoader loader && loader.load == targetLoad)
+                if (comp is IndustryLoaderBase loader && loader.load == targetLoad)
                 {
                     return Mathf.Max(0.001f, loader.maxStorage);
                 }

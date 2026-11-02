@@ -43,6 +43,16 @@ namespace PrettyConvenientMenu.Tests
             freightFacility.Components.Add(new IndustryLoader());
             Assert.AreEqual(FacilityType.CommercialFreight, FacilityClassifier.Classify(freightFacility));
 
+            // 5b. Industry Seller -> CommercialFreight
+            Industry sellerFacility = new Industry { identifier = "seller_facility" };
+            sellerFacility.Components.Add(new IndustrySeller());
+            Assert.AreEqual(FacilityType.CommercialFreight, FacilityClassifier.Classify(sellerFacility));
+
+            // 5c. Teleport Loading Industry -> CommercialFreight
+            Industry teleportFacility = new Industry { identifier = "teleport_facility" };
+            teleportFacility.Components.Add(new TeleportLoadingIndustry());
+            Assert.AreEqual(FacilityType.CommercialFreight, FacilityClassifier.Classify(teleportFacility));
+
             // 6. Formulaic Component -> CommercialFreight
             Industry formulaicFacility = new Industry { identifier = "formulaic_facility" };
             formulaicFacility.Components.Add(new FormulaicIndustryComponent());

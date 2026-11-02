@@ -53,6 +53,34 @@ namespace PrettyConvenientMenu.Data.Helpers
                         break;
                     }
 
+                    case IndustrySeller seller:
+                    {
+                        if (string.IsNullOrEmpty(seller.loadId) || CarLoadLibrary.GetLoad(seller.loadId) is not { } outLoad)
+                        {
+                            break;
+                        }
+
+                        string? prefix = !seller.sharedStorage ? seller.subIdentifier : null;
+                        float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
+                        float nominalRatePerMin = seller.carLoadRate / 1440f;
+                        BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
+
+                        SequenceQueue(trackCars, seller, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer);
+                        break;
+                    }
+
+                    case TeleportLoadingIndustry { load: { } outLoad } teleLoader:
+                    {
+                        string? prefix = !teleLoader.sharedStorage ? teleLoader.subIdentifier : null;
+                        float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
+                        float periodMinutes = Mathf.Max(0.1f, teleLoader.carLoadPeriod / 60f);
+                        float nominalRatePerMin = (outLoad.NominalQuantityPerCarLoad > 0 ? outLoad.NominalQuantityPerCarLoad : 100000f) / periodMinutes;
+                        BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
+
+                        SequenceQueue(trackCars, teleLoader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer);
+                        break;
+                    }
+
                     case StorageUnloader storageUnloader:
                     {
                         string? prefix = !storageUnloader.sharedStorage ? storageUnloader.subIdentifier : null;

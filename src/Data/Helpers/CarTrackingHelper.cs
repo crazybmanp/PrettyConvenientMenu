@@ -92,6 +92,8 @@ namespace PrettyConvenientMenu.Data.Helpers
                     return !loader.orderEmpties;
                 case IndustryUnloader unloader:
                     return !unloader.orderLoads;
+                case IndustrySeller:
+                    return true;
                 default:
                     return false;
             }

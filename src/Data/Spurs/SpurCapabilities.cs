@@ -60,7 +60,7 @@ namespace PrettyConvenientMenu.Data.Spurs
             {
                 IndustryComponent comp = components[i];
                 if (comp is IndustryUnloader) canUnload = true;
-                else if (comp is IndustryLoader) canLoad = true;
+                else if (comp is IndustryLoaderBase or IndustrySeller) canLoad = true;
                 else if (comp is RepairTrack) canRepair = true;
                 else if (comp is TeamTrack) canTeamTrack = true;
                 else if (comp is StorageUnloader or StorageLoader) canStorageTransfer = true;

@@ -70,7 +70,7 @@ namespace PrettyConvenientMenu.Data.Spurs
 
             foreach (IndustryComponent comp in components)
             {
-                if (comp is not (IndustryLoader or IndustryUnloader or RepairTrack or TeamTrack or StorageLoader or StorageUnloader))
+                if (comp is not (IndustryLoaderBase or IndustryUnloader or RepairTrack or TeamTrack or StorageLoader or StorageUnloader or IndustrySeller))
                 {
                     continue;
                 }

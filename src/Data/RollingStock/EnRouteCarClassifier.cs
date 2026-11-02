@@ -71,9 +71,9 @@ namespace PrettyConvenientMenu.Data.RollingStock
                         break;
                     }
 
-                    if (comp is StorageLoader or IndustryLoader)
+                    if (comp is StorageLoader or IndustryLoaderBase or IndustrySeller)
                     {
-                        Load? outLoad = comp is IndustryLoader { load: { } lLoad }
+                        Load? outLoad = comp is IndustryLoaderBase { load: { } lLoad }
                             ? lLoad
                             : (!string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null);
                         if (outLoad == null) continue;

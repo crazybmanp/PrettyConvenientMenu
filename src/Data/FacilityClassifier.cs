@@ -42,7 +42,7 @@ namespace PrettyConvenientMenu.Data
                     {
                         hasProgression = true;
                     }
-                    if (c is IndustryLoader)
+                    if (c is IndustryLoaderBase or IndustrySeller)
                     {
                         hasOutputLoader = true;
                     }

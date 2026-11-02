@@ -44,6 +44,38 @@ namespace PrettyConvenientMenu.Tests
         }
 
         [Test]
+        public void SpurCapabilities_FromIndustrySeller_DetectsLoadingCapability()
+        {
+            List<IndustryComponent> components = new List<IndustryComponent>
+            {
+                new IndustrySeller()
+            };
+
+            SpurCapabilities caps = SpurCapabilities.FromComponents(components);
+            Assert.IsFalse(caps.CanUnload);
+            Assert.IsTrue(caps.CanLoad);
+            Assert.IsFalse(caps.CanRepair);
+            Assert.IsFalse(caps.CanTeamTrack);
+            Assert.IsFalse(caps.CanStorageTransfer);
+        }
+
+        [Test]
+        public void SpurCapabilities_FromTeleportLoadingIndustry_DetectsLoadingCapability()
+        {
+            List<IndustryComponent> components = new List<IndustryComponent>
+            {
+                new TeleportLoadingIndustry()
+            };
+
+            SpurCapabilities caps = SpurCapabilities.FromComponents(components);
+            Assert.IsFalse(caps.CanUnload);
+            Assert.IsTrue(caps.CanLoad);
+            Assert.IsFalse(caps.CanRepair);
+            Assert.IsFalse(caps.CanTeamTrack);
+            Assert.IsFalse(caps.CanStorageTransfer);
+        }
+
+        [Test]
         public void SpurCapabilities_FromRepairTrack_DetectsRepairCapability()
         {
             List<IndustryComponent> components = new List<IndustryComponent>
@@ -118,6 +150,30 @@ namespace PrettyConvenientMenu.Tests
             SpurCapabilities caps = new SpurCapabilities(canUnload: true, canLoad: false, canRepair: false, canTeamTrack: false, canStorageTransfer: false);
             CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
             Assert.AreEqual(CarGroupRole.CommercialInbound, role);
+        }
+
+        [Test]
+        public void ResolveSpurRole_WhenIndustrySellerOnly_ResolvesCommercialOutbound()
+        {
+            List<IndustryComponent> components = new List<IndustryComponent>
+            {
+                new IndustrySeller()
+            };
+            SpurCapabilities caps = SpurCapabilities.FromComponents(components);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.CommercialOutbound, role);
+        }
+
+        [Test]
+        public void ResolveSpurRole_WhenTeleportLoadingIndustryOnly_ResolvesCommercialOutbound()
+        {
+            List<IndustryComponent> components = new List<IndustryComponent>
+            {
+                new TeleportLoadingIndustry()
+            };
+            SpurCapabilities caps = SpurCapabilities.FromComponents(components);
+            CarGroupRole role = SpurClassifier.ResolveSpurRole(caps);
+            Assert.AreEqual(CarGroupRole.CommercialOutbound, role);
         }
 
         [Test]

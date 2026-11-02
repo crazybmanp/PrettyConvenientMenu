@@ -120,7 +120,7 @@ namespace PrettyConvenientMenu.Data.Collectors
                     }
                 }
 
-                if (component is IndustryLoader { load: { } outLoad } loader)
+                if (component is IndustryLoaderBase { load: { } outLoad } loader)
                 {
                     string? formulaPrefix = !loader.sharedStorage ? loader.subIdentifier : null;
                     float currentStock = industry.Storage?.QuantityInStorage(outLoad, formulaPrefix) ?? 0f;

@@ -169,6 +169,37 @@ namespace PrettyConvenientMenu.Tests
         }
 
         [Test]
+        public void IsCaptiveAutoStop_WhenEmptyStopIsIndustrySeller_ReturnsTrue()
+        {
+            Industry industry = new Industry { identifier = "sylva-ties" };
+            IndustrySeller tiesSeller = new IndustrySeller { Industry = industry, subIdentifier = "ties-seller" };
+            industry.Components.Add(tiesSeller);
+
+            bool isCaptive = CarTrackingHelper.IsCaptiveServiceComponent(tiesSeller);
+            Assert.IsTrue(isCaptive, "IndustrySeller must be recognized as captive service component.");
+
+            bool result = CarTrackingHelper.IsCaptiveAutoStop(
+                new List<IndustryComponent> { tiesSeller },
+                loadedAutoDestinationId: "workcar.mow",
+                emptyAutoDestinationId: tiesSeller.Identifier);
+
+            Assert.IsTrue(result, "When empty auto stop matches IndustrySeller, must return true.");
+        }
+
+        [Test]
+        public void IsWaybilledHere_IndustrySeller_WhenCarWaybilledToSellerComponent_ReturnsTrue()
+        {
+            Industry industry = new Industry { identifier = "sylva-ties" };
+            IndustrySeller seller = new IndustrySeller { Industry = industry, subIdentifier = "ties-seller" };
+            industry.Components.Add(seller);
+
+            OpsCarPosition sellerPos = new OpsCarPosition("Scott Tie Plant TO1", seller.Identifier, null!);
+            Waybill sellerWaybill = new Waybill(default, null, sellerPos, 0, false, null, 0);
+
+            Assert.IsTrue(CarTrackingHelper.IsWaybilledHere(sellerWaybill, industry, seller), "Car waybilled to IndustrySeller must match specificComponent.");
+        }
+
+        [Test]
         public void IsCaptiveAutoStop_WhenCarAutoStopsAreElsewhere_ReturnsFalse()
         {
             Industry industry = new Industry { identifier = "whittier-sawmill" };

@@ -3,8 +3,22 @@ using UnityEngine.UI;
 
 namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
 {
+    /// <summary>
+    /// Renders committed and scheduled shipment caliper brackets along the bottom of a progress bar.
+    /// Anchors to a fixed 5px strip at the bottom of the widget, independent of the bar height above it.
+    /// </summary>
     internal static class ProgressBarCaliper
     {
+        /// <summary>
+        /// Applies caliper projections to the bar's bottom edge.
+        /// </summary>
+        /// <param name="barRt">The root progress bar rect transform.</param>
+        /// <param name="origin">Normalized 0..1 position representing current net active stock.</param>
+        /// <param name="leftSpan">Normalized span extending leftwards representing committed outbound cargo.</param>
+        /// <param name="leftColor">Color for the left bracket line and end-cap.</param>
+        /// <param name="rightSpan">Normalized span extending rightwards representing scheduled inbound cargo.</param>
+        /// <param name="rightColor">Color for the right bracket line and end-cap.</param>
+        /// <param name="hasCaliper">Whether calipers should be visible.</param>
         public static void Apply(
             RectTransform barRt,
             float origin,
@@ -35,9 +49,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
 
             RectTransform caliperRt = caliperObj.GetComponent<RectTransform>();
             caliperRt.anchorMin = new Vector2(0f, 0f);
-            caliperRt.anchorMax = new Vector2(1f, 0.32f);
+            caliperRt.anchorMax = new Vector2(1f, 0f);
             caliperRt.offsetMin = Vector2.zero;
-            caliperRt.offsetMax = Vector2.zero;
+            caliperRt.offsetMax = new Vector2(0f, 5f);
 
             // Needle stem tick in caliper
             Transform tickTransform = caliperObj.transform.Find("CaliperTick");

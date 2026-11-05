@@ -40,7 +40,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
 
             if (spurGroup.Cars.Count == 0) return;
 
-            ReserveBuffer? repairBuffer = BufferHelper.FindRepairBuffer(componentsOnSpur, snapshot.Buffers, caps);
+            ReserveBuffer? repairBuffer = caps.CanRepair ? snapshot.Buffers.FindRepairBuffer() : null;
             float contractMultiplier = industry.GetContractMultiplier();
 
             // Sequence FIFO unloader/loader queues (Commercial & Storage) across the spur

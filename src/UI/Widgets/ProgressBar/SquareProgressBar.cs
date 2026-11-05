@@ -36,6 +36,10 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
         }
     }
 
+    /// <summary>
+    /// Custom multi-segment progress bar builder supporting forward/backward fills,
+    /// transition needles, caliper projections, and multi-landing stacking bars.
+    /// </summary>
     public sealed class SquareProgressBar
     {
         private readonly List<BarSegment> segments = new List<BarSegment>(4);
@@ -51,20 +55,25 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
         private float? caliperRightSpan;
         private Color caliperRightColor = new Color(0.30f, 0.69f, 0.31f, 0.95f);
 
+        // Lower-half stacking landing decorator
+        private bool hasLandingStack;
+        private readonly List<(float Ratio, Color Color, string Label)> landingStackSegments = new List<(float Ratio, Color Color, string Label)>(4);
+
+        /// <summary>
+        /// Adds a styled colored segment to the bar.
+        /// </summary>
         public SquareProgressBar AddBar(float width, SegmentStyle style, StackDirection direction = StackDirection.Forward)
         {
-            if (width > 0.0001f)
+            if (width > 0f)
             {
                 segments.Add(new BarSegment(width, style, direction));
             }
             return this;
         }
 
-        public SquareProgressBar AddBar(float width, Color color)
-        {
-            return AddBar(width, SegmentStyle.Solid(color), StackDirection.Forward);
-        }
-
+        /// <summary>
+        /// Adds a vertical marker or needle line across the fill area.
+        /// </summary>
         public SquareProgressBar WithMarker(float position, Color color, float width = 2f)
         {
             hasMarker = true;
@@ -74,6 +83,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             return this;
         }
 
+        /// <summary>
+        /// Adds caliper brackets beneath the progress bar to visualize en-route shipments.
+        /// </summary>
         public SquareProgressBar WithCaliper(
             float origin,
             float? leftSpan = null,
@@ -81,7 +93,14 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             float? rightSpan = null,
             Color? rightColor = null)
         {
-            hasCaliper = (leftSpan.HasValue && leftSpan.Value > 0.001f) || (rightSpan.HasValue && rightSpan.Value > 0.001f);
+            bool hasActiveSpan = (leftSpan.HasValue && leftSpan.Value > 0.001f) ||
+                                 (rightSpan.HasValue && rightSpan.Value > 0.001f);
+            hasCaliper = hasActiveSpan;
+            if (!hasActiveSpan)
+            {
+                return this;
+            }
+
             caliperOrigin = Mathf.Clamp01(origin);
             caliperLeftSpan = leftSpan;
             if (leftColor.HasValue)
@@ -96,6 +115,23 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             return this;
         }
 
+        /// <summary>
+        /// Configures the lower half of the progress bar as a multi-landing stacked breakdown.
+        /// </summary>
+        public SquareProgressBar WithLandingStack(IReadOnlyList<(float Ratio, Color Color, string Label)>? stack)
+        {
+            if (stack != null && stack.Count > 0)
+            {
+                hasLandingStack = true;
+                landingStackSegments.Clear();
+                landingStackSegments.AddRange(stack);
+            }
+            return this;
+        }
+
+        /// <summary>
+        /// Builds and styles the progress bar widget within the provided UIPanelBuilder.
+        /// </summary>
         public void Build(UIPanelBuilder b)
         {
             RectTransform barRt = b.AddProgressBar(0f);
@@ -134,21 +170,24 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 }
             }
 
-            float barBottomY = hasCaliper ? 0.38f : 0f;
-
-            Transform fillArea = barRt.Find("Fill Area");
-            if (fillArea != null)
+            // Height determination based on active features
+            float totalHeight = 8f;
+            if (hasLandingStack && hasCaliper)
             {
-                RectTransform? fillAreaRt = fillArea as RectTransform;
-                if (fillAreaRt != null)
-                {
-                    fillAreaRt.anchorMin = new Vector2(0f, barBottomY);
-                    fillAreaRt.anchorMax = new Vector2(1f, 1f);
-                    fillAreaRt.offsetMin = Vector2.zero;
-                    fillAreaRt.offsetMax = Vector2.zero;
-                }
+                totalHeight = 26f;
+            }
+            else if (hasLandingStack)
+            {
+                totalHeight = 20f;
+            }
+            else if (hasCaliper)
+            {
+                totalHeight = 16f;
             }
 
+            float caliperSpace = hasCaliper ? 6f : 0f;
+
+            // Bar Background
             Transform bg = slider.transform.Find("Background");
             if (bg != null)
             {
@@ -156,12 +195,36 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 Image bgImg = bg.GetComponent<Image>();
                 if (bgRt != null && bgImg != null)
                 {
-                    bgRt.anchorMin = new Vector2(0f, barBottomY);
+                    bgRt.anchorMin = new Vector2(0f, 0f);
                     bgRt.anchorMax = new Vector2(1f, 1f);
-                    bgRt.offsetMin = Vector2.zero;
+                    bgRt.offsetMin = new Vector2(0f, caliperSpace);
                     bgRt.offsetMax = Vector2.zero;
                     bgImg.color = new Color(0.18f, 0.18f, 0.18f, 0.85f);
                     bgImg.sprite = null;
+                }
+            }
+
+            // Main Fill Area
+            Transform fillArea = barRt.Find("Fill Area");
+            if (fillArea != null)
+            {
+                RectTransform? fillAreaRt = fillArea as RectTransform;
+                if (fillAreaRt != null)
+                {
+                    if (hasLandingStack)
+                    {
+                        fillAreaRt.anchorMin = new Vector2(0f, 0.52f);
+                        fillAreaRt.anchorMax = new Vector2(1f, 1f);
+                        fillAreaRt.offsetMin = new Vector2(0f, caliperSpace * 0.5f);
+                        fillAreaRt.offsetMax = Vector2.zero;
+                    }
+                    else
+                    {
+                        fillAreaRt.anchorMin = new Vector2(0f, 0f);
+                        fillAreaRt.anchorMax = new Vector2(1f, 1f);
+                        fillAreaRt.offsetMin = new Vector2(0f, caliperSpace);
+                        fillAreaRt.offsetMax = Vector2.zero;
+                    }
                 }
             }
 
@@ -172,6 +235,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             }
             slider.enabled = false;
 
+            // Render Main Stock Segments
             if (fillArea != null)
             {
                 float cursor = 0f;
@@ -284,7 +348,10 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 }
             }
 
-            // Caliper sub-track
+            // Lower-Half Landing Stack Decorator
+            ProgressBarLandingStack.Apply(barRt, landingStackSegments, hasLandingStack, bottomOffset: caliperSpace);
+
+            // Calipers (pinned to bottom 5px)
             ProgressBarCaliper.Apply(
                 barRt,
                 caliperOrigin,
@@ -298,7 +365,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             LayoutElement le = barRt.GetComponent<LayoutElement>();
             if (le != null)
             {
-                le.preferredHeight = hasCaliper ? 16f : 8f;
+                le.preferredHeight = totalHeight;
             }
         }
     }

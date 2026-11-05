@@ -11,16 +11,22 @@ namespace PrettyConvenientMenu.Data.Buffers
     {
         public string CargoType { get; set; } = string.Empty;
         public string CargoDisplayName { get; set; } = string.Empty;
+        public string? StoragePrefix { get; set; }
+        public string? Qualifier { get; set; }
         public LoadUnits Units { get; set; } = LoadUnits.Pounds;
         public BufferRole Role { get; set; } = BufferRole.CommercialInput;
-        public float CurrentAmount { get; set; }
-        public float MaxCapacity { get; set; }
+        public virtual float CurrentAmount { get; set; }
+        public virtual float MaxCapacity { get; set; }
+
+        // Color Swatch for Multi-Landing Buffers
+        public Color? SwatchColor { get; set; }
+        public string? SwatchHex { get; set; }
 
         // 2x2 Transfer Model (Active vs Scheduled)
-        public float ActiveInbound { get; set; }
-        public float ActiveOutbound { get; set; }
-        public float ScheduledInbound { get; set; }
-        public float CommittedOutbound { get; set; }
+        public virtual float ActiveInbound { get; set; }
+        public virtual float ActiveOutbound { get; set; }
+        public virtual float ScheduledInbound { get; set; }
+        public virtual float CommittedOutbound { get; set; }
 
         public float TotalInbound => ActiveInbound + ScheduledInbound;
         public float TotalOutbound => ActiveOutbound + CommittedOutbound;

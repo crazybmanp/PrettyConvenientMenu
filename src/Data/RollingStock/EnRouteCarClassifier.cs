@@ -60,7 +60,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
                         (Load? inLoad, float qty, float cap) = CarTrackingHelper.GetCarCargo(car, opsCar);
                         if (inLoad == null || qty <= 0.001f) continue;
 
-                        if (BufferHelper.FindMatchingBuffer(snapshot.Buffers, inLoad, isUnload: true) is { } buf)
+                        if (snapshot.Buffers.FindMatching(comp, inLoad) is { } buf)
                         {
                             buf.ScheduledInbound += qty;
                         }
@@ -79,7 +79,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
                         if (outLoad == null) continue;
 
                         (float qty, float cap) = opsCar.QuantityOfLoad(outLoad);
-                        if (BufferHelper.FindMatchingBuffer(snapshot.Buffers, outLoad, isUnload: false) is { } buf)
+                        if (snapshot.Buffers.FindMatching(comp, outLoad) is { } buf)
                         {
                             buf.CommittedOutbound += Mathf.Max(0f, cap - qty);
                         }

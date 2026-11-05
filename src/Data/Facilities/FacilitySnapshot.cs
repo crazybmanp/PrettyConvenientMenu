@@ -20,7 +20,7 @@ namespace PrettyConvenientMenu.Data.Facilities
         public string StatusMessage { get; set; } = string.Empty;
         public string DiagnosticAlert { get; set; } = string.Empty;
 
-        public List<BufferInfo> Buffers { get; } = new List<BufferInfo>(8);
+        public BufferCollection Buffers { get; } = new BufferCollection();
         public List<FacilityCarGroup> CarGroups { get; } = new List<FacilityCarGroup>(8);
 
         // Read-only computed queries over CarGroups (guarantees zero drift)

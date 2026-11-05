@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using Model.Ops;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
-using PrettyConvenientMenu.Data.Helpers;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Collectors
@@ -36,10 +35,7 @@ namespace PrettyConvenientMenu.Data.Collectors
 
                         float capacity = entry.storage * load.NominalQuantityPerCarLoad;
                         float currentStock = industry.Storage?.QuantityInStorage(load, prefix) ?? 0f;
-
-                        ReserveBuffer buf = BufferHelper.GetOrAddReserveBuffer(snapshot.Buffers, load, BufferRole.MaintenanceReserve);
-                        buf.CurrentAmount = currentStock;
-                        buf.MaxCapacity = Mathf.Max(0.001f, capacity);
+                        snapshot.Buffers.AddReserve(load, BufferRole.MaintenanceReserve, currentStock, Mathf.Max(0.001f, capacity), prefix);
                     }
                 }
                 else if (component is StorageLoader storageLoader)
@@ -49,13 +45,9 @@ namespace PrettyConvenientMenu.Data.Collectors
                     {
                         if (entry.load is not { } load) continue;
 
-                        ReserveBuffer buf = BufferHelper.GetOrAddReserveBuffer(snapshot.Buffers, load, BufferRole.MaintenanceReserve);
-                        if (buf.MaxCapacity <= 0.001f)
-                        {
-                            float currentStock = industry.Storage?.QuantityInStorage(load, prefix) ?? 0f;
-                            buf.CurrentAmount = currentStock;
-                            buf.MaxCapacity = Mathf.Max(0.001f, load.NominalQuantityPerCarLoad * 10f);
-                        }
+                        float currentStock = industry.Storage?.QuantityInStorage(load, prefix) ?? 0f;
+                        float capacity = Mathf.Max(0.001f, load.NominalQuantityPerCarLoad * 10f);
+                        snapshot.Buffers.AddReserve(load, BufferRole.MaintenanceReserve, currentStock, capacity, prefix);
                     }
                 }
             }
@@ -63,8 +55,6 @@ namespace PrettyConvenientMenu.Data.Collectors
 
         public void EvaluateFacilityDiagnostics(Industry industry, FacilitySnapshot snapshot)
         {
-            // MOW yards are passive stockpiles and staging tracks for work trains, not active manufacturing facilities.
-            // Empty reserves are normal and do not halt operations.
             snapshot.DiagnosticAlert = string.Empty;
         }
     }

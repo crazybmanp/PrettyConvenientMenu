@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Model.Ops;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
-using PrettyConvenientMenu.Data.Helpers;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Collectors
@@ -50,11 +49,8 @@ namespace PrettyConvenientMenu.Data.Collectors
                          string.Equals(unloader.ShortName(industry), repairTrack.ShortName(industry), StringComparison.OrdinalIgnoreCase));
 
                     BufferRole role = isRepairParts ? BufferRole.MaintenanceReserve : BufferRole.LocomotiveSupply;
-
-                    ReserveBuffer buffer = BufferHelper.GetOrAddReserveBuffer(snapshot.Buffers, load, role);
-                    buffer.CurrentAmount = currentStock;
-                    buffer.MaxCapacity = Mathf.Max(0.001f, unloader.maxStorage);
-                    buffer.IsRepairParts = isRepairParts;
+                    string? qualifier = !unloader.sharedStorage ? (unloader.ShortName(industry) ?? unloader.subIdentifier) : null;
+                    snapshot.Buffers.AddReserve(load, role, currentStock, Mathf.Max(0.001f, unloader.maxStorage), prefix, qualifier, isRepairParts);
                 }
             }
         }

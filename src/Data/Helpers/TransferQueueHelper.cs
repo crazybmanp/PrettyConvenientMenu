@@ -23,7 +23,7 @@ namespace PrettyConvenientMenu.Data.Helpers
             IReadOnlyList<SpottedCarInfo> trackCars,
             IReadOnlyList<IndustryComponent> componentsOnSpur,
             Industry industry,
-            List<BufferInfo> buffers,
+            BufferCollection buffers,
             float contractMultiplier)
         {
             foreach (IndustryComponent comp in componentsOnSpur)
@@ -36,7 +36,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                         float currentStock = industry.Storage?.QuantityInStorage(inLoad, prefix) ?? 0f;
                         float bufferAvailable = Mathf.Max(0f, unloader.maxStorage - currentStock);
                         float nominalRatePerMin = (unloader.carUnloadRate * contractMultiplier) / 1440f;
-                        BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, inLoad, isUnload: true);
+                        BufferInfo? matchingBuffer = buffers.FindMatching(unloader);
 
                         SequenceQueue(trackCars, unloader, inLoad, industry, bufferAvailable, nominalRatePerMin, isUnload: true, matchingBuffer);
                         break;
@@ -47,7 +47,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                         string? prefix = !loader.sharedStorage ? loader.subIdentifier : null;
                         float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
                         float nominalRatePerMin = (loader.carLoadRate * contractMultiplier) / 1440f;
-                        BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
+                        BufferInfo? matchingBuffer = buffers.FindMatching(loader);
 
                         SequenceQueue(trackCars, loader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer);
                         break;
@@ -63,7 +63,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                         string? prefix = !seller.sharedStorage ? seller.subIdentifier : null;
                         float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
                         float nominalRatePerMin = seller.carLoadRate / 1440f;
-                        BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
+                        BufferInfo? matchingBuffer = buffers.FindMatching(seller, outLoad);
 
                         SequenceQueue(trackCars, seller, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer);
                         break;
@@ -75,7 +75,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                         float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
                         float periodMinutes = Mathf.Max(0.1f, teleLoader.carLoadPeriod / 60f);
                         float nominalRatePerMin = (outLoad.NominalQuantityPerCarLoad > 0 ? outLoad.NominalQuantityPerCarLoad : 100000f) / periodMinutes;
-                        BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
+                        BufferInfo? matchingBuffer = buffers.FindMatching(teleLoader);
 
                         SequenceQueue(trackCars, teleLoader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer);
                         break;
@@ -93,7 +93,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                             float currentStock = industry.Storage?.QuantityInStorage(inLoad, prefix) ?? 0f;
                             float bufferAvailable = Mathf.Max(0f, maxStorage - currentStock);
                             float nominalRatePerMin = (entry.unloadRate * inLoad.NominalQuantityPerCarLoad) / 1440f;
-                            BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, inLoad, isUnload: true);
+                            BufferInfo? matchingBuffer = buffers.FindMatching(storageUnloader, inLoad);
 
                             SequenceQueue(trackCars, storageUnloader, inLoad, industry, bufferAvailable, nominalRatePerMin, isUnload: true, matchingBuffer, ref activeCarAssigned, ref accumulatedMinutes, multiLoadComponent: true, allowParallelTransfer: false);
                         }
@@ -110,7 +110,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                             if (entry.load is not { } outLoad) continue;
                             float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
                             float nominalRatePerMin = (entry.carLoadRate * outLoad.NominalQuantityPerCarLoad) / 1440f;
-                            BufferInfo? matchingBuffer = BufferHelper.FindMatchingBuffer(buffers, outLoad, isUnload: false);
+                            BufferInfo? matchingBuffer = buffers.FindMatching(storageLoader, outLoad);
 
                             SequenceQueue(trackCars, storageLoader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer, ref activeBatchAssigned, ref accumulatedMinutes, multiLoadComponent: true, allowParallelTransfer: true);
                         }

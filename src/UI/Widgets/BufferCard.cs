@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.UI.Common;
 using PrettyConvenientMenu.UI.Widgets.ProgressBar;
 using TMPro;
 using UI.Builder;
+using UnityEngine;
 
 namespace PrettyConvenientMenu.UI.Widgets
 {
@@ -14,8 +16,17 @@ namespace PrettyConvenientMenu.UI.Widgets
         MowReserve
     }
 
+    /// <summary>
+    /// Renders an individual storage buffer card with header info, progress bar, transfer rates, and runway metrics.
+    /// </summary>
     internal static class BufferCard
     {
+        /// <summary>
+        /// Renders the buffer card into the provided UI builder.
+        /// </summary>
+        /// <param name="builder">Target UI builder.</param>
+        /// <param name="buf">Buffer data to render.</param>
+        /// <param name="mode">Display mode (Commercial, EngineSupply, or MowReserve).</param>
         public static void Render(UIPanelBuilder builder, BufferInfo? buf, BufferCardMode mode = BufferCardMode.Commercial)
         {
             if (buf == null)
@@ -61,11 +72,33 @@ namespace PrettyConvenientMenu.UI.Widgets
                 builder.AddLabel(availLine);
             }
 
-            // 3. Progress Bar with Overlays & Calipers
+            // Prepare lower-half landing stack if sub-buffers exist
+            List<(float Ratio, Color Color, string Label)>? landingStack = null;
+            if (buf is ICompositeBuffer composite && composite.SubBuffers.Count > 0 && buf.MaxCapacity > 0f)
+            {
+                landingStack = new List<(float Ratio, Color Color, string Label)>(composite.SubBuffers.Count);
+                for (int i = 0; i < composite.SubBuffers.Count; i++)
+                {
+                    BufferInfo landing = composite.SubBuffers[i];
+                    float ratio = Mathf.Clamp01(landing.CurrentAmount / buf.MaxCapacity);
+                    Color color = landing.SwatchColor ?? Color.white;
+                    string label = landing.Qualifier ?? landing.StoragePrefix ?? string.Empty;
+                    landingStack.Add((ratio, color, label));
+                }
+            }
+
+            // 3. Progress Bar with Overlays, Calipers & Optional Landing Stack
             switch (mode)
             {
                 case BufferCardMode.Commercial:
-                    ProgressBarFactory.CreateCommercialBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
+                    ProgressBarFactory.CreateCommercialBar(
+                        builder,
+                        buf.FillRatio,
+                        buf.ActiveInboundRatio,
+                        buf.ActiveOutboundRatio,
+                        buf.CommittedOutboundRatio,
+                        buf.ScheduledInboundRatio,
+                        landingStack);
                     break;
                 case BufferCardMode.EngineSupply:
                     if (buf is ReserveBuffer repairBuf && repairBuf.IsRepairParts)

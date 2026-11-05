@@ -115,6 +115,9 @@ namespace PrettyConvenientMenu.Data.Spurs
             CarGroupRole role = ResolveSpurRole(caps);
             FacilityCarGroup spurGroup = snapshot.GetOrAddCarGroup(trackName, role);
 
+            // Match spur to multi-landing swatch if applicable
+            spurGroup.SwatchHex = snapshot.Buffers.FindSwatch(componentsOnSpur);
+
             IEnumerable<Car>? carsOnTrack = opsController.CarsAtPosition(componentsOnSpur[0]);
             if (carsOnTrack == null) return;
 

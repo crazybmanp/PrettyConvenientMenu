@@ -1,17 +1,25 @@
+using System.Collections.Generic;
 using UI.Builder;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
 {
+    /// <summary>
+    /// Factory for creating standard and specialized progress bars across the facility monitor.
+    /// </summary>
     public static class ProgressBarFactory
     {
+        /// <summary>
+        /// Creates a commercial commodity progress bar with optional multi-landing stacked breakdown.
+        /// </summary>
         public static void CreateCommercialBar(
             UIPanelBuilder builder,
             float stockRatio,
             float deliveryRatio = 0f,
             float outgoingRatio = 0f,
             float committedRatio = 0f,
-            float inboundRatio = 0f)
+            float inboundRatio = 0f,
+            IReadOnlyList<(float Ratio, Color Color, string Label)>? landingStack = null)
         {
             CreateStandardTransferBar(
                 builder,
@@ -22,10 +30,14 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 inboundRatio,
                 stockColor: new Color(0.94f, 0.92f, 0.88f, 1f),
                 deliveryColor: new Color(0.30f, 0.69f, 0.31f, 0.85f),
-                outgoingColor: new Color(1.0f, 0.60f, 0.0f, 1f)
+                outgoingColor: new Color(1.0f, 0.60f, 0.0f, 1f),
+                landingStack: landingStack
             );
         }
 
+        /// <summary>
+        /// Creates a locomotive engine supply progress bar.
+        /// </summary>
         public static void CreateEngineSupplyBar(
             UIPanelBuilder builder,
             float stockRatio,
@@ -47,6 +59,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             );
         }
 
+        /// <summary>
+        /// Creates a maintenance-of-way reserve material progress bar.
+        /// </summary>
         public static void CreateMowBar(
             UIPanelBuilder builder,
             float stockRatio,
@@ -68,6 +83,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             );
         }
 
+        /// <summary>
+        /// Creates a specialized 4-segment repair parts progress bar.
+        /// </summary>
         public static void CreateRepairPartsBar(
             UIPanelBuilder builder,
             float baseRatio,
@@ -126,7 +144,8 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             float inboundRatio,
             Color stockColor,
             Color deliveryColor,
-            Color outgoingColor)
+            Color outgoingColor,
+            IReadOnlyList<(float Ratio, Color Color, string Label)>? landingStack = null)
         {
             SquareProgressBar bar = new SquareProgressBar();
 
@@ -168,6 +187,12 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                     rightSpan: right,
                     rightColor: new Color(0.30f, 0.69f, 0.31f, 0.95f)
                 );
+            }
+
+            // 6. Landing Stack Decorator (Lower Half)
+            if (landingStack != null && landingStack.Count > 0)
+            {
+                bar.WithLandingStack(landingStack);
             }
 
             bar.Build(builder);

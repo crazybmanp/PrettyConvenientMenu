@@ -43,6 +43,9 @@ namespace PrettyConvenientMenu.UI.Sections
         private const float GroupBottomSpacing = 12f;
         private const int InitialRowCapacity = 32;
 
+        /// <summary>
+        /// Builds the scrollable rolling stock list for the facility monitor window.
+        /// </summary>
         public static ScrollRect? Build(
             UIPanelBuilder builder,
             FacilitySnapshot snapshot,
@@ -117,6 +120,9 @@ namespace PrettyConvenientMenu.UI.Sections
             }
         }
 
+        /// <summary>
+        /// Renders a single spur or en-route car group, prefixing matching landing swatches if assigned.
+        /// </summary>
         private static void RenderCarGroup(
             UIPanelBuilder scrollBuilder,
             FacilityCarGroup group,
@@ -126,9 +132,13 @@ namespace PrettyConvenientMenu.UI.Sections
         {
             (string direction, string headerColor) = StatusBadges.GetCarGroupStyle(facilityType, group);
 
+            string swatchPrefix = !string.IsNullOrEmpty(group.SwatchHex)
+                ? $"<color={group.SwatchHex}>■</color> "
+                : string.Empty;
+
             string spurTitle = group.IsEnRoute
-                ? $"<color={headerColor}><b>Arriving: {group.TrackName}</b></color>  ({direction})"
-                : $"<color={headerColor}><b>Spur: {group.TrackName}</b></color>  ({direction})";
+                ? $"{swatchPrefix}<color={headerColor}><b>Arriving: {group.TrackName}</b></color>  ({direction})"
+                : $"{swatchPrefix}<color={headerColor}><b>Spur: {group.TrackName}</b></color>  ({direction})";
             scrollBuilder.AddLabel(spurTitle, t =>
             {
                 t.textWrappingMode = TextWrappingModes.NoWrap;

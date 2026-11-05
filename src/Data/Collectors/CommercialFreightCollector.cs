@@ -1,17 +1,23 @@
 using System;
 using System.Collections.Generic;
 using Model.Ops;
+using Model.Ops.Definition;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
-using PrettyConvenientMenu.Data.Helpers;
-using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Collectors
 {
+    /// <summary>
+    /// Collector for commercial freight industries (factories, logging camps, mines, mills).
+    /// Populates commercial buffer states, accumulating multi-landing operations directly into summary cards with SubBuffers.
+    /// </summary>
     public sealed class CommercialFreightCollector : IFacilityDataCollector
     {
         public FacilityType FacilityType => FacilityType.CommercialFreight;
 
+        /// <summary>
+        /// Populates contract tier information and progression status.
+        /// </summary>
         public void PopulateFacilityMetadata(Industry industry, FacilitySnapshot snapshot)
         {
             if (industry.TryGetActiveContract(out Contract contract))
@@ -26,6 +32,10 @@ namespace PrettyConvenientMenu.Data.Collectors
             }
         }
 
+        /// <summary>
+        /// Populates commercial input/output buffers directly into snapshot.Buffers.
+        /// Distinct physical landings for the same cargo are automatically aggregated by the BufferCollection.
+        /// </summary>
         public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)
         {
             List<IndustryComponent>? components = industry.Components;
@@ -39,56 +49,26 @@ namespace PrettyConvenientMenu.Data.Collectors
                 if (c is FormulaicIndustryComponent { IsProgressionEnabled: true } formulaic)
                 {
                     string? formulaPrefix = !formulaic.sharedStorage ? formulaic.subIdentifier : null;
+                    string? qualifier = !formulaic.sharedStorage ? (formulaic.ShortName(industry) ?? formulaic.subIdentifier) : null;
 
                     // Inputs
                     foreach (FormulaicIndustryComponent.Term term in formulaic.inputTerms)
                     {
                         if (term.load is not { } inLoad) continue;
-
                         float dailyRate = term.unitsPerDay * contractMultiplier;
                         float currentStock = industry.Storage?.QuantityInStorage(inLoad, formulaPrefix) ?? 0f;
-                        float maxStorage = BufferHelper.FindMaxStorageForLoad(components, inLoad);
-
-                        CommercialBuffer buf = BufferHelper.GetOrAddCommercialBuffer(snapshot.Buffers, inLoad, true);
-                        buf.CurrentAmount = currentStock;
-                        buf.MaxCapacity = maxStorage;
-                        buf.DailyRate = dailyRate;
-
-                        if (dailyRate > 0.001f)
-                        {
-                            float days = currentStock / dailyRate;
-                            buf.RunwayDuration = TimeSpan.FromDays(days);
-                        }
-                        else
-                        {
-                            buf.RunwayDuration = null;
-                        }
+                        float maxStorage = FindMaxStorageForLoad(components, inLoad, formulaPrefix);
+                        snapshot.Buffers.AddCommercial(inLoad, true, currentStock, maxStorage, dailyRate, formulaPrefix, qualifier);
                     }
 
                     // Outputs
                     foreach (FormulaicIndustryComponent.Term term in formulaic.outputTerms)
                     {
                         if (term.load is not { } outLoad) continue;
-
                         float dailyRate = term.unitsPerDay * contractMultiplier;
                         float currentStock = industry.Storage?.QuantityInStorage(outLoad, formulaPrefix) ?? 0f;
-                        float maxStorage = BufferHelper.FindMaxStorageForLoad(components, outLoad);
-
-                        CommercialBuffer buf = BufferHelper.GetOrAddCommercialBuffer(snapshot.Buffers, outLoad, false);
-                        buf.CurrentAmount = currentStock;
-                        buf.MaxCapacity = maxStorage;
-                        buf.DailyRate = dailyRate;
-
-                        float remainingCapacity = Mathf.Max(0f, maxStorage - currentStock);
-                        if (dailyRate > 0.001f)
-                        {
-                            float days = remainingCapacity / dailyRate;
-                            buf.RunwayDuration = TimeSpan.FromDays(days);
-                        }
-                        else
-                        {
-                            buf.RunwayDuration = null;
-                        }
+                        float maxStorage = FindMaxStorageForLoad(components, outLoad, formulaPrefix);
+                        snapshot.Buffers.AddCommercial(outLoad, false, currentStock, maxStorage, dailyRate, formulaPrefix, qualifier);
                     }
                 }
             }
@@ -99,54 +79,26 @@ namespace PrettyConvenientMenu.Data.Collectors
                 if (component is IndustryUnloader { load: { } inLoad } unloader)
                 {
                     string? formulaPrefix = !unloader.sharedStorage ? unloader.subIdentifier : null;
+                    string? qualifier = !unloader.sharedStorage ? (unloader.ShortName(industry) ?? unloader.subIdentifier) : null;
                     float currentStock = industry.Storage?.QuantityInStorage(inLoad, formulaPrefix) ?? 0f;
-
-                    CommercialBuffer buf = BufferHelper.GetOrAddCommercialBuffer(snapshot.Buffers, inLoad, true);
-                    if (buf.MaxCapacity <= 0.001f)
-                    {
-                        buf.CurrentAmount = currentStock;
-                        buf.MaxCapacity = unloader.maxStorage;
-                        float dailyRate = unloader.storageConsumptionRate * contractMultiplier;
-                        buf.DailyRate = dailyRate;
-                        if (dailyRate > 0.001f)
-                        {
-                            float days = currentStock / dailyRate;
-                            buf.RunwayDuration = TimeSpan.FromDays(days);
-                        }
-                        else
-                        {
-                            buf.RunwayDuration = null;
-                        }
-                    }
+                    float dailyRate = unloader.storageConsumptionRate * contractMultiplier;
+                    snapshot.Buffers.AddCommercial(inLoad, true, currentStock, unloader.maxStorage, dailyRate, formulaPrefix, qualifier);
                 }
 
                 if (component is IndustryLoaderBase { load: { } outLoad } loader)
                 {
                     string? formulaPrefix = !loader.sharedStorage ? loader.subIdentifier : null;
+                    string? qualifier = !loader.sharedStorage ? (loader.ShortName(industry) ?? loader.subIdentifier) : null;
                     float currentStock = industry.Storage?.QuantityInStorage(outLoad, formulaPrefix) ?? 0f;
-
-                    CommercialBuffer buf = BufferHelper.GetOrAddCommercialBuffer(snapshot.Buffers, outLoad, false);
-                    if (buf.MaxCapacity <= 0.001f)
-                    {
-                        buf.CurrentAmount = currentStock;
-                        buf.MaxCapacity = loader.maxStorage;
-                        float dailyRate = loader.productionRate * contractMultiplier;
-                        buf.DailyRate = dailyRate;
-                        float remainingCapacity = Mathf.Max(0f, loader.maxStorage - currentStock);
-                        if (dailyRate > 0.001f)
-                        {
-                            float days = remainingCapacity / dailyRate;
-                            buf.RunwayDuration = TimeSpan.FromDays(days);
-                        }
-                        else
-                        {
-                            buf.RunwayDuration = null;
-                        }
-                    }
+                    float dailyRate = loader.productionRate * contractMultiplier;
+                    snapshot.Buffers.AddCommercial(outLoad, false, currentStock, loader.maxStorage, dailyRate, formulaPrefix, qualifier);
                 }
             }
         }
 
+        /// <summary>
+        /// Evaluates industry operational status (Starved, Blocked, Running, Idle) based on buffer fill levels.
+        /// </summary>
         public void EvaluateFacilityDiagnostics(Industry industry, FacilitySnapshot snapshot)
         {
             if (industry.usesContract && snapshot.CurrentTier == 0)
@@ -223,6 +175,30 @@ namespace PrettyConvenientMenu.Data.Collectors
                     snapshot.DiagnosticAlert = string.Empty;
                 }
             }
+        }
+
+        private static float FindMaxStorageForLoad(List<IndustryComponent>? components, Load? targetLoad, string? storagePrefix = null)
+        {
+            if (components == null || targetLoad == null) return 100f;
+
+            foreach (IndustryComponent comp in components)
+            {
+                string? compPrefix = !comp.sharedStorage ? comp.subIdentifier : null;
+                if (storagePrefix != null && !string.Equals(compPrefix, storagePrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (comp is IndustryUnloader unloader && unloader.load == targetLoad)
+                {
+                    return Math.Max(0.001f, unloader.maxStorage);
+                }
+                if (comp is IndustryLoaderBase loader && loader.load == targetLoad)
+                {
+                    return Math.Max(0.001f, loader.maxStorage);
+                }
+            }
+            return 100f;
         }
     }
 }

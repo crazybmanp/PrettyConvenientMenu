@@ -7,7 +7,6 @@ using PrettyConvenientMenu.UI.Widgets;
 using TMPro;
 using UI.Builder;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace PrettyConvenientMenu.UI.Sections
 {
@@ -25,16 +24,6 @@ namespace PrettyConvenientMenu.UI.Sections
         // Maximum initial text-fitted width caps (px) per column before flexible expansion
         private static readonly float[] ColumnMaxCaps = new float[ColumnCount] { 160f, 140f, 140f, 140f, 80f };
 
-        // Scroll content right-edge padding (px):
-        // - BaseScrollRightPadding: matches the visual gap on the left side of the window when no scrollbar is shown.
-        // - ScrollbarInsetWidth: horizontal space occupied by the game's vertical scrollbar handle inside the content rect.
-        // - ActiveScrollRightPadding: preserves the same BaseScrollRightPadding visual gap to the left of the scrollbar handle.
-        private const int BaseScrollRightPadding = 2;
-        private const int ScrollbarInsetWidth = 10;
-        private const int ActiveScrollRightPadding = BaseScrollRightPadding + ScrollbarInsetWidth;
-        private const float ScrollbarOverflowTolerance = 0.5f;
-        private const float ScrollPositionRestoreEpsilon = 0.01f;
-
         // Table spacing constants (px)
         private const float ColumnSpacing = 4f;
         private const float RowSpacing = 3f;
@@ -44,80 +33,34 @@ namespace PrettyConvenientMenu.UI.Sections
         private const int InitialRowCapacity = 32;
 
         /// <summary>
-        /// Builds the scrollable rolling stock list for the facility monitor window.
+        /// Builds the rolling stock section for the facility monitor window.
         /// </summary>
-        public static ScrollRect? Build(
+        public static void Build(
             UIPanelBuilder builder,
-            FacilitySnapshot snapshot,
-            float savedAnchoredY)
+            FacilitySnapshot snapshot)
         {
-            ScrollRect? activeScrollRect = null;
-
             builder.AddSection("Rolling Stock", b =>
             {
                 int groupCount = snapshot.CarGroups.Count;
                 if (groupCount == 0)
                 {
                     b.AddLabelEmptyState("No rolling stock detected at this facility.");
-                    activeScrollRect = null;
                     return;
                 }
 
-                RectTransform scrollRt = b.VScrollView(scrollBuilder =>
+                List<RectTransform[]> allHeaders = new List<RectTransform[]>(groupCount);
+                List<RectTransform[]> allRows = new List<RectTransform[]>(InitialRowCapacity);
+
+                for (int g = 0; g < groupCount; g++)
                 {
-                    List<RectTransform[]> allHeaders = new List<RectTransform[]>(groupCount);
-                    List<RectTransform[]> allRows = new List<RectTransform[]>(InitialRowCapacity);
+                    RenderCarGroup(b, snapshot.CarGroups[g], snapshot.FacilityType, allHeaders, allRows);
+                }
 
-                    for (int g = 0; g < groupCount; g++)
-                    {
-                        RenderCarGroup(scrollBuilder, snapshot.CarGroups[g], snapshot.FacilityType, allHeaders, allRows);
-                    }
-
-                    if (allHeaders.Count > 0)
-                    {
-                        AutoSizedTable.ApplyColumnWidths(allHeaders, allRows, ColumnShares, ColumnMaxCaps);
-                    }
-                });
-
-                if (scrollRt == null) return;
-
-                activeScrollRect = scrollRt.GetComponent<ScrollRect>();
-                if (activeScrollRect == null) return;
-
-                InitializeScrollContent(activeScrollRect, savedAnchoredY);
+                if (allHeaders.Count > 0)
+                {
+                    AutoSizedTable.ApplyColumnWidths(allHeaders, allRows, ColumnShares, ColumnMaxCaps);
+                }
             });
-
-            return activeScrollRect;
-        }
-
-        /// <summary>
-        /// Updates the scroll content's right padding based on whether the content height overflows the viewport,
-        /// keeping the table's right gap identical against either the window border or the scrollbar handle.
-        /// </summary>
-        public static void UpdateScrollPadding(ScrollRect? scrollRect, RectTransform? windowContentRoot)
-        {
-            if (scrollRect == null || scrollRect.content == null) return;
-
-            if (windowContentRoot != null)
-            {
-                LayoutRebuilder.ForceRebuildLayoutImmediate(windowContentRoot);
-            }
-            LayoutRebuilder.ForceRebuildLayoutImmediate(scrollRect.content);
-
-            VerticalLayoutGroup vlg = scrollRect.content.GetComponent<VerticalLayoutGroup>();
-            if (vlg == null) return;
-
-            RectTransform viewRt = scrollRect.viewport != null
-                ? scrollRect.viewport
-                : (RectTransform)scrollRect.transform;
-            bool scrollbarActive = scrollRect.content.rect.height > viewRt.rect.height + ScrollbarOverflowTolerance;
-
-            int targetPadding = scrollbarActive ? ActiveScrollRightPadding : BaseScrollRightPadding;
-            if (vlg.padding.right != targetPadding)
-            {
-                vlg.padding.right = targetPadding;
-                LayoutRebuilder.ForceRebuildLayoutImmediate(scrollRect.content);
-            }
         }
 
         /// <summary>
@@ -257,23 +200,6 @@ namespace PrettyConvenientMenu.UI.Sections
                 t.alignment = TextAlignmentOptions.Right;
                 t.textWrappingMode = TextWrappingModes.NoWrap;
             });
-        }
-
-        private static void InitializeScrollContent(ScrollRect activeScrollRect, float savedAnchoredY)
-        {
-            if (activeScrollRect.content == null) return;
-
-            // VScrollView assigns a shared static RectOffset to every scroll view; clone it so per-window padding is isolated.
-            VerticalLayoutGroup vlg = activeScrollRect.content.GetComponent<VerticalLayoutGroup>();
-            if (vlg != null)
-            {
-                vlg.padding = new RectOffset(vlg.padding.left, BaseScrollRightPadding, vlg.padding.top, vlg.padding.bottom);
-            }
-
-            if (Mathf.Abs(savedAnchoredY) > ScrollPositionRestoreEpsilon)
-            {
-                activeScrollRect.content.anchoredPosition = new Vector2(activeScrollRect.content.anchoredPosition.x, savedAnchoredY);
-            }
         }
     }
 }

@@ -6,23 +6,56 @@ using UnityEngine.UI;
 namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
 {
     /// <summary>
+    /// Represents a single landing sub-buffer segment within the lower landing stack.
+    /// </summary>
+    public readonly struct LandingSegment
+    {
+        public readonly float Ratio;
+        public readonly float OutboundRatio;
+        public readonly float InboundRatio;
+        public readonly Color Color;
+        public readonly string Label;
+
+        public LandingSegment(float ratio, float outboundRatio, float inboundRatio, Color color, string label)
+        {
+            Ratio = ratio;
+            OutboundRatio = outboundRatio;
+            InboundRatio = inboundRatio;
+            Color = color;
+            Label = label;
+        }
+    }
+
+    /// <summary>
     /// Renders color-coded landing segments across the lower portion of a multi-landing commodity progress bar.
-    /// Centered bold text labels are displayed inside each slice, gracefully hiding text when slices are too narrow or empty.
+    /// Supports active transfer stripe shading and centered bold text labels.
     /// </summary>
     internal static class ProgressBarLandingStack
     {
         private const float MinWidthForText = 12f;
 
         /// <summary>
+        /// Derives a high-contrast two-tone stripe color directly from the landing's own swatch hue.
+        /// Guarantees the stripe never clashes with any palette color regardless of swatch choice.
+        /// </summary>
+        public static Color GetStripeShade(Color baseColor)
+        {
+            float luminance = (0.299f * baseColor.r) + (0.587f * baseColor.g) + (0.114f * baseColor.b);
+            return luminance > 0.40f
+                ? Color.Lerp(baseColor, Color.black, 0.55f)
+                : Color.Lerp(baseColor, Color.white, 0.55f);
+        }
+
+        /// <summary>
         /// Applies or updates the landing stack decorator on the progress bar.
         /// </summary>
         /// <param name="barRt">Root progress bar RectTransform.</param>
-        /// <param name="segments">List of landing segments containing ratio of total capacity, color, and label.</param>
+        /// <param name="segments">List of landing segments containing fill ratios, active transfer ratios, color, and label.</param>
         /// <param name="hasLandingStack">Whether the landing stack should be visible.</param>
         /// <param name="bottomOffset">Vertical pixel offset from bottom (reserved for caliper space if active).</param>
         public static void Apply(
             RectTransform barRt,
-            IReadOnlyList<(float Ratio, Color Color, string Label)>? segments,
+            IReadOnlyList<LandingSegment>? segments,
             bool hasLandingStack,
             float bottomOffset = 0f)
         {
@@ -48,7 +81,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
 
             RectTransform trackRt = trackObj.GetComponent<RectTransform>();
             trackRt.anchorMin = new Vector2(0f, 0f);
-            trackRt.anchorMax = new Vector2(1f, 0.46f);
+            trackRt.anchorMax = new Vector2(1f, 0.50f);
             trackRt.offsetMin = new Vector2(0f, bottomOffset);
             trackRt.offsetMax = Vector2.zero;
 
@@ -63,7 +96,11 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
 
             for (int i = 0; i < segments.Count; i++)
             {
-                (float ratio, Color color, string label) = segments[i];
+                LandingSegment seg = segments[i];
+                float ratio = seg.Ratio;
+                float outRatio = seg.OutboundRatio;
+                Color color = seg.Color;
+                string label = seg.Label;
 
                 if (ratio <= 0.0005f)
                 {
@@ -120,6 +157,49 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 sliceRt.offsetMin = Vector2.zero;
                 sliceRt.offsetMax = Vector2.zero;
 
+                // Active loading stripe overlay (carves backward from the right of this landing slice)
+                string stripeName = $"Stripe_{i}";
+                Transform stripeTransform = sliceObj.transform.Find(stripeName);
+                if (outRatio > 0.0005f && (to - from) > 0.0005f)
+                {
+                    GameObject stripeObj;
+                    if (stripeTransform == null)
+                    {
+                        stripeObj = new GameObject(stripeName, typeof(RectTransform), typeof(TiledStripeImage));
+                        stripeObj.transform.SetParent(sliceObj.transform, false);
+                    }
+                    else
+                    {
+                        stripeObj = stripeTransform.gameObject;
+                        if (stripeObj.GetComponent<TiledStripeImage>() == null)
+                        {
+                            Image oldImg = stripeObj.GetComponent<Image>();
+                            if (oldImg != null)
+                            {
+                                UnityEngine.Object.DestroyImmediate(oldImg);
+                            }
+                            stripeObj.AddComponent<TiledStripeImage>();
+                        }
+                    }
+                    stripeObj.SetActive(true);
+
+                    TiledStripeImage stripeImg = stripeObj.GetComponent<TiledStripeImage>();
+                    stripeImg.texture = TiledStripeImage.GetOrCreateStripedTexture();
+                    stripeImg.material = null;
+                    stripeImg.color = GetStripeShade(color);
+
+                    float stripeFraction = Mathf.Clamp01(outRatio / (to - from));
+                    RectTransform stripeRt = stripeObj.GetComponent<RectTransform>();
+                    stripeRt.anchorMin = new Vector2(1f - stripeFraction, 0f);
+                    stripeRt.anchorMax = new Vector2(1f, 1f);
+                    stripeRt.offsetMin = Vector2.zero;
+                    stripeRt.offsetMax = Vector2.zero;
+                }
+                else if (stripeTransform != null)
+                {
+                    stripeTransform.gameObject.SetActive(false);
+                }
+
                 // Check pixel width of slice
                 float slicePixelWidth = (to - from) * barPixelWidth;
                 string textName = $"Label_{i}";
@@ -154,6 +234,8 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                     textRt.anchorMax = Vector2.one;
                     textRt.offsetMin = Vector2.zero;
                     textRt.offsetMax = Vector2.zero;
+
+                    textObj.transform.SetAsLastSibling();
                 }
                 else if (textTransform != null)
                 {

@@ -19,7 +19,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             float outgoingRatio = 0f,
             float committedRatio = 0f,
             float inboundRatio = 0f,
-            IReadOnlyList<(float Ratio, Color Color, string Label)>? landingStack = null)
+            IReadOnlyList<LandingSegment>? landingStack = null)
         {
             CreateStandardTransferBar(
                 builder,
@@ -145,7 +145,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             Color stockColor,
             Color deliveryColor,
             Color outgoingColor,
-            IReadOnlyList<(float Ratio, Color Color, string Label)>? landingStack = null)
+            IReadOnlyList<LandingSegment>? landingStack = null)
         {
             SquareProgressBar bar = new SquareProgressBar();
 

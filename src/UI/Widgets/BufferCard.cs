@@ -73,17 +73,19 @@ namespace PrettyConvenientMenu.UI.Widgets
             }
 
             // Prepare lower-half landing stack if sub-buffers exist
-            List<(float Ratio, Color Color, string Label)>? landingStack = null;
+            List<LandingSegment>? landingStack = null;
             if (buf is ICompositeBuffer composite && composite.SubBuffers.Count > 0 && buf.MaxCapacity > 0f)
             {
-                landingStack = new List<(float Ratio, Color Color, string Label)>(composite.SubBuffers.Count);
+                landingStack = new List<LandingSegment>(composite.SubBuffers.Count);
                 for (int i = 0; i < composite.SubBuffers.Count; i++)
                 {
                     BufferInfo landing = composite.SubBuffers[i];
                     float ratio = Mathf.Clamp01(landing.CurrentAmount / buf.MaxCapacity);
+                    float outRatio = Mathf.Clamp01(landing.ActiveOutbound / buf.MaxCapacity);
+                    float inRatio = Mathf.Clamp01(landing.ActiveInbound / buf.MaxCapacity);
                     Color color = landing.SwatchColor ?? Color.white;
                     string label = landing.Qualifier ?? landing.StoragePrefix ?? string.Empty;
-                    landingStack.Add((ratio, color, label));
+                    landingStack.Add(new LandingSegment(ratio, outRatio, inRatio, color, label));
                 }
             }
 

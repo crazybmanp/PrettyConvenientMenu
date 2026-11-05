@@ -57,7 +57,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
 
         // Lower-half stacking landing decorator
         private bool hasLandingStack;
-        private readonly List<(float Ratio, Color Color, string Label)> landingStackSegments = new List<(float Ratio, Color Color, string Label)>(4);
+        private readonly List<LandingSegment> landingStackSegments = new List<LandingSegment>(4);
 
         /// <summary>
         /// Adds a styled colored segment to the bar.
@@ -118,7 +118,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
         /// <summary>
         /// Configures the lower half of the progress bar as a multi-landing stacked breakdown.
         /// </summary>
-        public SquareProgressBar WithLandingStack(IReadOnlyList<(float Ratio, Color Color, string Label)>? stack)
+        public SquareProgressBar WithLandingStack(IReadOnlyList<LandingSegment>? stack)
         {
             if (stack != null && stack.Count > 0)
             {
@@ -213,9 +213,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 {
                     if (hasLandingStack)
                     {
-                        fillAreaRt.anchorMin = new Vector2(0f, 0.52f);
+                        fillAreaRt.anchorMin = new Vector2(0f, 0.50f);
                         fillAreaRt.anchorMax = new Vector2(1f, 1f);
-                        fillAreaRt.offsetMin = new Vector2(0f, caliperSpace * 0.5f);
+                        fillAreaRt.offsetMin = Vector2.zero;
                         fillAreaRt.offsetMax = Vector2.zero;
                     }
                     else

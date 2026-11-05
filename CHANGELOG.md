@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0
+- Fixed logging camps and multi-track facilities only showing data for a single track, adding composite buffers to aggregate capacity, stock, and recipes across all tracks (#7).
+- Expanded the scroll area to encompass the entire window rather than just the rolling stock section, allowing all buffers and tracks to scroll together so nothing is cut off on large facilities (#5).
+- Added configurable modifier keys for clicking tracks vs. buildings (`None`, `Any`, `Control`, `Alt`, `Shift`) to prevent accidental opening during switching operations, configurable in **Preferences -> Mods** via `railroader-mod-settings` by ashenmare (#9).
+- Set mod scope to `optional` in `Info.json`.
+
 ## 0.2.1
 - Fixed MOW supply cars (ties, ballast, concrete) being incorrectly marked as Misspotted at IndustrySeller spurs like Scott Tie Plant and Rock Products (#4).
 - Added support for TeleportLoadingIndustry raw material mines (Alarka Copper Mines, Robinson Gap Coal, Nantahala Talc & Limestone): empty inbound tracks are now classified as loading spurs, queue ETAs are accurately projected from the mine's loading cycle, and buffer capacities are correctly reported.

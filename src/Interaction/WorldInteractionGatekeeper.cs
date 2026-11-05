@@ -1,3 +1,4 @@
+using PrettyConvenientMenu.Settings;
 using RollingStock;
 using UI;
 using UI.Tooltips;
@@ -18,7 +19,14 @@ namespace PrettyConvenientMenu.Interaction
                 return false;
             }
 
-            // 2. Ignore click if pointer is hovering over an interactive game UI menu (Unity-safe null check)
+            // 2. Validate that at least one interaction mode modifier matches
+            if (!IsModifierMatching(ModSettings.Current.TrackModifier) &&
+                !IsModifierMatching(ModSettings.Current.BuildingModifier))
+            {
+                return false;
+            }
+
+            // 3. Ignore click if pointer is hovering over an interactive game UI menu (Unity-safe null check)
             EventSystem? es = EventSystem.current;
             if (es != null && es.IsPointerOverGameObject())
             {
@@ -42,7 +50,7 @@ namespace PrettyConvenientMenu.Interaction
                 return false;
             }
 
-            // 3. Ignore click if mouse is actively hovering over an interactive game object (lever, switch, cab control, turntable)
+            // 4. Ignore click if mouse is actively hovering over an interactive game object (lever, switch, cab control, turntable)
             ObjectPicker? objectPicker = ObjectPicker.Shared;
             if (objectPicker != null)
             {
@@ -54,6 +62,19 @@ namespace PrettyConvenientMenu.Interaction
             }
 
             return true;
+        }
+
+        public static bool IsModifierMatching(ClickModifierMode mode)
+        {
+            return mode switch
+            {
+                ClickModifierMode.Any => true,
+                ClickModifierMode.None => !GameInput.IsControlDown && !GameInput.IsAltDown && !GameInput.IsShiftDown,
+                ClickModifierMode.Control => GameInput.IsControlDown,
+                ClickModifierMode.Alt => GameInput.IsAltDown,
+                ClickModifierMode.Shift => GameInput.IsShiftDown,
+                _ => true
+            };
         }
     }
 }

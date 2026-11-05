@@ -19,6 +19,31 @@ You can open the monitor for an industry or service facility by clicking on its 
 
 ---
 
+## Settings & Keybinds
+
+You can customize click behavior and configure modifier keys in-game:
+
+1. Open Railroader's **Preferences** menu (press `Esc` or click the gear icon).
+2. Select the **Mods** tab.
+3. Expand **A Pretty Convenient Menu**.
+
+### Available Settings
+
+| Setting | Options | Default | Description |
+| :--- | :--- | :--- | :--- |
+| **Track Click Modifier** | `None`, `Any`, `Control`, `Alt`, `Shift` | `None` | Modifier key required when clicking tracks or rails in the world to open the facility monitor. |
+| **Building Click Modifier** | `None`, `Any`, `Control`, `Alt`, `Shift` | `None` | Modifier key required when clicking buildings, loading docks, or facility structures in the world to open the facility monitor. |
+
+### How the Modifier Modes Work
+
+- **`None` (Default):** Requires clicking with **no** modifier keys held. If you are holding `Shift`, `Control`, or `Alt` (for example, when holding `Shift` for Smart Air / coupler interactions), the click is ignored. This prevents accidental popups during switching and train operations.
+- **`Any`:** Clicking opens the facility monitor regardless of whether any modifier keys are held (the original mod behavior).
+- **`Control` / `Alt` / `Shift`:** Requires holding that specific modifier key while clicking (for example, `Ctrl + Click`). This is especially useful if you want to leave buildings easy to click with `None`, but require `Control` on tracks to avoid misclicks around busy yard ladders.
+
+> **Note:** Changes made in the Preferences menu take effect immediately upon saving—no game restart is required. Preferences are persisted to `settings.json` in the mod's installation folder.
+
+---
+
 ## Supported Facilities
 
 ### 1. Commercial Freight Industries

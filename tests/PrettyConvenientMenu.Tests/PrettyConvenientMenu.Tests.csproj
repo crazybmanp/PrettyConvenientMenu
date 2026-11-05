@@ -20,6 +20,10 @@
       <HintPath>$(ManagedDir)\Core.dll</HintPath>
       <Private>true</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(ManagedDir)\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
       <Private>true</Private>

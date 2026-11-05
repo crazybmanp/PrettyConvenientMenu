@@ -1,6 +1,7 @@
 using System;
 using Helpers;
 using Model.Ops;
+using PrettyConvenientMenu.Settings;
 using PrettyConvenientMenu.UI.Windows;
 using Track;
 using UnityEngine;
@@ -46,27 +47,35 @@ namespace PrettyConvenientMenu.Interaction
                     return;
                 }
 
-                // 3. Track Geometry Check (clicking on rails inside an industry track span)
-                if (Graph.Shared is { } graph && graph.LocationFromMouse(cachedCamera) is { } trackLoc)
+                bool canClickBuilding = WorldInteractionGatekeeper.IsModifierMatching(ModSettings.Current.BuildingModifier);
+                bool canClickTrack = WorldInteractionGatekeeper.IsModifierMatching(ModSettings.Current.TrackModifier);
+
+                Ray ray = cachedCamera.ScreenPointToRay(Input.mousePosition);
+
+                // 3. Physical Raycast Check (clicking on buildings, loading docks, or props)
+                if (canClickBuilding)
+                {
+                    int layerMask = (1 << Layers.Default) | (1 << Layers.Clickable);
+                    if (Physics.Raycast(ray, out RaycastHit hit, maxRaycastDistance, layerMask))
+                    {
+                        if (!InteractionHitFilter.ShouldIgnoreHit(hit.collider))
+                        {
+                            if (FacilityResolver.TryResolveFromHit(hit, out Industry? hitIndustry))
+                            {
+                                OpenForIndustry(hitIndustry!);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                // 4. Track Geometry Check (clicking on rails inside an industry track span)
+                if (canClickTrack && Graph.Shared is { } graph && graph.LocationFromMouse(cachedCamera) is { } trackLoc)
                 {
                     if (FacilityResolver.TryResolveFromTrack(trackLoc, out Industry? trackIndustry))
                     {
                         OpenForIndustry(trackIndustry!);
                         return;
-                    }
-                }
-
-                // 4. Physical Raycast Check (clicking on buildings, loading docks, or props)
-                int layerMask = (1 << Layers.Default) | (1 << Layers.Clickable);
-                Ray ray = cachedCamera.ScreenPointToRay(Input.mousePosition);
-                if (Physics.Raycast(ray, out RaycastHit hit, maxRaycastDistance, layerMask))
-                {
-                    if (!InteractionHitFilter.ShouldIgnoreHit(hit.collider))
-                    {
-                        if (FacilityResolver.TryResolveFromHit(hit, out Industry? hitIndustry))
-                        {
-                            OpenForIndustry(hitIndustry!);
-                        }
                     }
                 }
             }

@@ -1,6 +1,8 @@
 using System;
 using System.Reflection;
 using HarmonyLib;
+using PrettyConvenientMenu.Settings;
+using PrettyConvenientMenu.UI.Preferences;
 using Railroader.Modding;
 using UnityEngine;
 
@@ -9,7 +11,17 @@ namespace PrettyConvenientMenu
     public sealed class ModEntryPoint : IModEntryPoint, IWorldLifecycle
     {
         private static IModLogger? logger;
-        public static IModLogger Log => logger ?? throw new InvalidOperationException("ModEntryPoint logger not initialized.");
+        public static IModLogger Log => logger ?? NullModLogger.Instance;
+
+        private sealed class NullModLogger : IModLogger
+        {
+            public static readonly NullModLogger Instance = new NullModLogger();
+            public void Debug(string message) { }
+            public void Info(string message) { }
+            public void Warning(string message) { }
+            public void Error(string message) { }
+            public void Error(Exception exception, string message) { }
+        }
 
         private Harmony? harmony;
         private GameObject? interactionHost;
@@ -26,6 +38,15 @@ namespace PrettyConvenientMenu
 
             try
             {
+                ModSettings.Load(context.ModDirectory);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to load ModSettings.");
+            }
+
+            try
+            {
                 harmony = new Harmony("CRZBP.APrettyConvenientMenu");
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
                 Log.Info("Harmony patches applied successfully.");
@@ -33,6 +54,18 @@ namespace PrettyConvenientMenu
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to apply Harmony patches.");
+            }
+
+            try
+            {
+                if (harmony != null && !string.IsNullOrEmpty(ModSettings.Current.FilePath))
+                {
+                    SettingsUi.Start(harmony, ModSettings.Current.FilePath!);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to initialize SettingsUi.");
             }
 
             // If world was already loaded prior to mod load, initialize interaction host immediately
@@ -45,6 +78,16 @@ namespace PrettyConvenientMenu
         public void OnModUnload()
         {
             OnWorldUnload();
+
+            try
+            {
+                SettingsUi.Stop();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to stop SettingsUi.");
+            }
+            ModSettings.Current.Save();
             harmony?.UnpatchAll("CRZBP.APrettyConvenientMenu");
             harmony = null;
             Log.Info("PrettyConvenientMenu unloaded.");

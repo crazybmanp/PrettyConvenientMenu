@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+- Implemented support for crzbp.GeneralWaybilling mod
+- Changed some core logic to be more stable
+
 ## 0.3.0
 - Fixed logging camps and multi-track facilities only showing data for a single track, adding composite buffers to aggregate capacity, stock, and recipes across all tracks (#7).
 - Expanded the scroll area to encompass the entire window rather than just the rolling stock section, allowing all buffers and tracks to scroll together so nothing is cut off on large facilities (#5).

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Model;
 using Model.Ops;
+using Model.Ops.AutoDestinations;
 using Model.Ops.Definition;
 
 namespace PrettyConvenientMenu.Data.Helpers
@@ -95,8 +96,61 @@ namespace PrettyConvenientMenu.Data.Helpers
                 case IndustrySeller:
                     return true;
                 default:
+                    if (component != null && component.GetType().Name == "GeneralIndustryLoader")
+                    {
+                        return true;
+                    }
                     return false;
             }
+        }
+
+        /// <summary>
+        /// True when a captive component on this spur is the car's "when loaded" or "when empty" auto destination,
+        /// supporting direct domain position equivalence for composite destinations.
+        /// </summary>
+        public static bool IsCaptiveAutoStop(
+            IReadOnlyList<IndustryComponent>? spurComponents,
+            ResolvedAutoDestination? loadedAutoDestination,
+            ResolvedAutoDestination? emptyAutoDestination)
+        {
+            if (spurComponents == null || (!loadedAutoDestination.HasValue && !emptyAutoDestination.HasValue))
+            {
+                return false;
+            }
+
+            foreach (IndustryComponent component in spurComponents)
+            {
+                if (!IsCaptiveServiceComponent(component))
+                {
+                    continue;
+                }
+
+                OpsCarPosition compPos = (OpsCarPosition)component;
+
+                if (loadedAutoDestination.HasValue)
+                {
+                    OpsCarPosition loadPos = loadedAutoDestination.Value.Position;
+                    if (string.Equals(component.Identifier, loadPos.Identifier, StringComparison.OrdinalIgnoreCase)
+                        || loadPos.Equals(compPos)
+                        || compPos.Equals(loadPos))
+                    {
+                        return true;
+                    }
+                }
+
+                if (emptyAutoDestination.HasValue)
+                {
+                    OpsCarPosition emptyPos = emptyAutoDestination.Value.Position;
+                    if (string.Equals(component.Identifier, emptyPos.Identifier, StringComparison.OrdinalIgnoreCase)
+                        || emptyPos.Equals(compPos)
+                        || compPos.Equals(emptyPos))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

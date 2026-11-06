@@ -183,6 +183,13 @@ namespace PrettyConvenientMenu.Data.Buffers
                 case StorageLoader:
                     isUnload = false;
                     break;
+                default:
+                    if (component.GetType().Name == "GeneralIndustryLoader")
+                    {
+                        load ??= component.GetType().GetProperty("TargetLoad")?.GetValue(component) as Load;
+                        isUnload = false;
+                    }
+                    break;
             }
 
             if (load == null) return null;

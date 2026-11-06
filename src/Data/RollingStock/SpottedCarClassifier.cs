@@ -115,21 +115,10 @@ namespace PrettyConvenientMenu.Data.RollingStock
                 return false;
             }
 
-            return CarTrackingHelper.IsCaptiveAutoStop(
-                componentsOnSpur,
-                AutoDestinationId(car, AutoDestinationType.Load, opsController),
-                AutoDestinationId(car, AutoDestinationType.Empty, opsController));
-        }
+            ResolvedAutoDestination? loadDest = car.GetAutoDestination(AutoDestinationType.Load, opsController);
+            ResolvedAutoDestination? emptyDest = car.GetAutoDestination(AutoDestinationType.Empty, opsController);
 
-        private static string? AutoDestinationId(Car car, AutoDestinationType destinationType, OpsController opsController)
-        {
-            ResolvedAutoDestination? destination = car.GetAutoDestination(destinationType, opsController);
-            if (!destination.HasValue)
-            {
-                return null;
-            }
-
-            return destination.Value.Position.Identifier;
+            return CarTrackingHelper.IsCaptiveAutoStop(componentsOnSpur, loadDest, emptyDest);
         }
 
         private static bool TryClassifyComponentWork(
@@ -145,7 +134,6 @@ namespace PrettyConvenientMenu.Data.RollingStock
                 {
                     case RepairTrack repairTrack when TryClassifyRepairTrack(carInfo, repairTrack, opsController, repairBuffer):
                         return true;
-
                     case TeamTrack teamTrack when TryClassifyTeamTrack(carInfo, teamTrack, industry):
                         return true;
                 }

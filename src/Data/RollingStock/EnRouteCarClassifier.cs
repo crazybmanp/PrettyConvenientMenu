@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Model;
 using Model.Ops;
@@ -27,6 +28,8 @@ namespace PrettyConvenientMenu.Data.RollingStock
                 if (car == null || IsAlreadySpotted(snapshot.CarGroups, spottedGroupCount, car)) continue;
                 if (opsController.CachedOpsCar(car) is not { } opsCar) continue;
 
+                // Check program maintenance repair modes first
+                bool handledByRepair = false;
                 foreach (IndustryComponent comp in components)
                 {
                     if (comp is RepairTrack repairTrack &&
@@ -47,49 +50,85 @@ namespace PrettyConvenientMenu.Data.RollingStock
 
                         string trackName = repairTrack.ShortName(industry) ?? "Repair Track";
                         snapshot.GetOrAddCarGroup(trackName, CarGroupRole.EnRouteRepair).Cars.Add(carInfo);
+                        handledByRepair = true;
                         break;
                     }
+                }
+                if (handledByRepair) continue;
 
-                    if (opsCar.Waybill is not { } waybill || !CarTrackingHelper.IsWaybilledHere(waybill, industry, comp))
+                if (opsCar.Waybill is not { } waybill) continue;
+
+                // 1. Try exact destination identifier match on components (handles specific spurs and general destinations)
+                IndustryComponent? destComp = null;
+                string destId = waybill.Destination.Identifier;
+                if (!string.IsNullOrEmpty(destId))
+                {
+                    foreach (IndustryComponent comp in components)
+                    {
+                        if (string.Equals(comp.Identifier, destId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            destComp = comp;
+                            break;
+                        }
+                    }
+                }
+
+                // 2. Fallback: match via IsWaybilledHere if destination identifier was not an exact component match
+                if (destComp == null)
+                {
+                    if (!CarTrackingHelper.IsWaybilledHere(waybill, industry))
                     {
                         continue;
                     }
 
-                    if (comp is IndustryUnloader or StorageUnloader)
+                    foreach (IndustryComponent comp in components)
                     {
-                        (Load? inLoad, float qty, float cap) = CarTrackingHelper.GetCarCargo(car, opsCar);
-                        if (inLoad == null || qty <= 0.001f) continue;
-
-                        if (snapshot.Buffers.FindMatching(comp, inLoad) is { } buf)
+                        if (CarTrackingHelper.IsWaybilledHere(waybill, industry, comp))
                         {
-                            buf.ScheduledInbound += qty;
+                            destComp = comp;
+                            break;
                         }
+                    }
+                }
 
-                        SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
-                        carInfo.MarkEnRoute();
-                        snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
-                        break;
+                if (destComp == null) continue;
+
+                if (destComp is IndustryUnloader or StorageUnloader)
+                {
+                    (Load? inLoad, float qty, float cap) = CarTrackingHelper.GetCarCargo(car, opsCar);
+                    if (inLoad == null || qty <= 0.001f) continue;
+
+                    if (snapshot.Buffers.FindMatching(destComp, inLoad) is { } buf)
+                    {
+                        buf.ScheduledInbound += qty;
                     }
 
-                    if (comp is StorageLoader or IndustryLoaderBase or IndustrySeller)
+                    SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
+                    carInfo.MarkEnRoute();
+                    snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
+                    continue;
+                }
+
+                if (destComp is StorageLoader or IndustryLoaderBase or IndustrySeller || destComp.GetType().Name == "GeneralIndustryLoader")
+                {
+                    Load? outLoad = destComp is IndustryLoaderBase { load: { } lLoad }
+                        ? lLoad
+                        : (destComp.GetType().Name == "GeneralIndustryLoader"
+                            ? destComp.GetType().GetProperty("TargetLoad")?.GetValue(destComp) as Load
+                            : (!string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null));
+                    if (outLoad == null) continue;
+
+                    (float qty, float cap) = opsCar.QuantityOfLoad(outLoad);
+                    if (snapshot.Buffers.FindMatching(destComp, outLoad) is { } buf)
                     {
-                        Load? outLoad = comp is IndustryLoaderBase { load: { } lLoad }
-                            ? lLoad
-                            : (!string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null);
-                        if (outLoad == null) continue;
-
-                        (float qty, float cap) = opsCar.QuantityOfLoad(outLoad);
-                        if (snapshot.Buffers.FindMatching(comp, outLoad) is { } buf)
-                        {
-                            buf.CommittedOutbound += Mathf.Max(0f, cap - qty);
-                        }
-
-                        SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
-                        carInfo.SetLoad(outLoad, qty, cap);
-                        carInfo.MarkEnRoute();
-                        snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
-                        break;
+                        buf.CommittedOutbound += Mathf.Max(0f, cap - qty);
                     }
+
+                    SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
+                    carInfo.SetLoad(outLoad, qty, cap);
+                    carInfo.MarkEnRoute();
+                    snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
+                    continue;
                 }
             }
         }

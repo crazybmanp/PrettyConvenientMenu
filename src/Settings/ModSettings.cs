@@ -23,6 +23,9 @@ namespace PrettyConvenientMenu.Settings
         [JsonConverter(typeof(StringEnumConverter))]
         public ClickModifierMode BuildingModifier { get; set; } = ClickModifierMode.None;
 
+        [JsonProperty("pinByDefault")]
+        public bool PinByDefault { get; set; } = true;
+
         [JsonProperty("modifier")]
         [JsonConverter(typeof(StringEnumConverter))]
         internal ClickModifierMode? LegacyModifier
@@ -75,7 +78,8 @@ namespace PrettyConvenientMenu.Settings
             {
                 FilePath = settingsPath,
                 TrackModifier = ClickModifierMode.None,
-                BuildingModifier = ClickModifierMode.None
+                BuildingModifier = ClickModifierMode.None,
+                PinByDefault = true
             };
 
             fresh.Save();
@@ -93,7 +97,8 @@ namespace PrettyConvenientMenu.Settings
                     {
                         Current.TrackModifier = updated.TrackModifier;
                         Current.BuildingModifier = updated.BuildingModifier;
-                        ModEntryPoint.Log.Info($"Applied PrettyConvenientMenu settings from UI (Track: {Current.TrackModifier}, Building: {Current.BuildingModifier})");
+                        Current.PinByDefault = updated.PinByDefault;
+                        ModEntryPoint.Log.Info($"Applied PrettyConvenientMenu settings from UI (Track: {Current.TrackModifier}, Building: {Current.BuildingModifier}, PinByDefault: {Current.PinByDefault})");
                     }
                 }
                 catch (Exception ex)

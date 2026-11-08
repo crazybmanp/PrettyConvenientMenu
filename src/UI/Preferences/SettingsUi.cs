@@ -37,6 +37,13 @@ namespace PrettyConvenientMenu.UI.Preferences
                     true,
                     "Requires holding this modifier key when clicking buildings or facilities in the world to open the menu."
                 ),
+                SettingField.Bool(
+                    "pinByDefault",
+                    "Pin Windows by Default",
+                    true,
+                    true,
+                    "When enabled, newly opened facility windows are pinned by default. When disabled, opening a new window automatically closes unpinned windows."
+                ),
             };
 
             Action<string> log = m => ModEntryPoint.Log.Warning("Pretty Convenient Menu: " + m);

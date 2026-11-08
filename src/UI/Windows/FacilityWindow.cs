@@ -2,11 +2,14 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Model.Ops;
+using TMPro;
 using PrettyConvenientMenu.Data;
 using PrettyConvenientMenu.Data.Facilities;
+using PrettyConvenientMenu.Settings;
 using PrettyConvenientMenu.UI.Sections;
 using UI.Builder;
 using UI.CompanyWindow;
+using UI.Tooltips;
 using UI.Windows;
 using UnityEngine;
 using UnityEngine.UI;
@@ -34,6 +37,12 @@ namespace PrettyConvenientMenu.UI.Windows
         private const int ActiveScrollRightPadding = BaseScrollRightPadding + ScrollbarInsetWidth;
         private const float ScrollbarOverflowTolerance = 0.5f;
 
+        // Top bar decorative pin dowel colors and tooltips
+        private static readonly Color PinnedBronzeColor = new Color(0.85f, 0.70f, 0.38f, 1.0f); // Warm bronze/gold
+        private static readonly Color UnpinnedOutlineColor = new Color(0.70f, 0.58f, 0.38f, 0.90f); // Bronze outline ring
+        private const string PinnedTooltipText = "Pinned: Window stays open when opening other facilities. Click to unpin.";
+        private const string UnpinnedTooltipText = "Unpinned: Window will close when opening another facility. Click to pin.";
+
         private static readonly Dictionary<string, FacilityWindow> ActiveWindows = new Dictionary<string, FacilityWindow>();
         private static readonly WaitForSeconds RefreshInterval = new WaitForSeconds(RefreshIntervalSeconds);
         private static int cascadeCount = 0;
@@ -49,6 +58,13 @@ namespace PrettyConvenientMenu.UI.Windows
         private RectTransform? companyButtonRect;
         private float savedScrollPos = 1.0f;
         private float savedAnchoredY = 0f;
+        private bool isPinned = true;
+
+        private GameObject? pinDowelGo;
+        private TextMeshProUGUI? pinDowelText;
+        private UITooltipProvider? pinDowelTooltip;
+
+        public bool IsPinned => isPinned;
 
         public static FacilityWindow? Open(Industry industry)
         {
@@ -57,8 +73,7 @@ namespace PrettyConvenientMenu.UI.Windows
             try
             {
                 if (ActiveWindows.TryGetValue(indId, out FacilityWindow existingWindow) &&
-                    existingWindow != null &&
-                    existingWindow.Window != null &&
+                    existingWindow?.Window != null &&
                     existingWindow.Window.IsShown)
                 {
                     existingWindow.Window.OrderFront();
@@ -71,18 +86,16 @@ namespace PrettyConvenientMenu.UI.Windows
                     return null;
                 }
 
+                Vector2? reusePosition = CloseUnpinnedWindows();
+
                 FacilityWindow window = WindowManager.Shared.CreateWindowWithComponent<FacilityWindow>();
                 window.identifier = $"PrettyConvenientMenu.Facility.{indId}";
                 ActiveWindows[indId] = window;
                 window.InitializeForIndustry(industry);
 
-                if (window.Window == null) return window;
-                Vector2 basePos = window.Window.GetPosition();
-                float offset = (cascadeCount % MaxCascadeSteps) * CascadeStepOffset;
-                cascadeCount++;
-                if (offset > 0.001f)
+                if (window.Window != null)
                 {
-                    window.Window.SetPositionRestoring(new Vector2(basePos.x + offset, basePos.y - offset));
+                    ApplyWindowPosition(window.Window, reusePosition);
                 }
 
                 return window;
@@ -94,13 +107,57 @@ namespace PrettyConvenientMenu.UI.Windows
             }
         }
 
+        private static Vector2? CloseUnpinnedWindows()
+        {
+            Vector2? reusePosition = null;
+            List<FacilityWindow> unpinnedWindows = new List<FacilityWindow>();
+
+            foreach (FacilityWindow active in ActiveWindows.Values)
+            {
+                if (active != null && !active.IsPinned && active.Window != null && active.Window.IsShown)
+                {
+                    if (!reusePosition.HasValue)
+                    {
+                        reusePosition = active.Window.GetPosition();
+                    }
+                    unpinnedWindows.Add(active);
+                }
+            }
+
+            foreach (FacilityWindow unpinned in unpinnedWindows)
+            {
+                unpinned.Window?.CloseWindow();
+            }
+
+            return reusePosition;
+        }
+
+        private static void ApplyWindowPosition(Window window, Vector2? reusePosition)
+        {
+            if (reusePosition.HasValue)
+            {
+                window.SetPositionRestoring(reusePosition.Value);
+                return;
+            }
+
+            Vector2 basePos = window.GetPosition();
+            float offset = (cascadeCount % MaxCascadeSteps) * CascadeStepOffset;
+            cascadeCount++;
+            if (offset > 0.001f)
+            {
+                window.SetPositionRestoring(new Vector2(basePos.x + offset, basePos.y - offset));
+            }
+        }
+
         private void InitializeForIndustry(Industry industry)
         {
             currentIndustry = industry;
+            isPinned = ModSettings.Current.PinByDefault;
             Title = $"{industry.DisplayName} — Facility Monitor";
 
             FacilityDataService.PopulateSnapshot(industry, snapshot);
             Show();
+            SetupTopBarPinDowel();
             UpdateScrollPadding();
 
             if (refreshCoroutine != null)
@@ -108,6 +165,71 @@ namespace PrettyConvenientMenu.UI.Windows
                 StopCoroutine(refreshCoroutine);
             }
             refreshCoroutine = StartCoroutine(PeriodicRefreshLoop());
+        }
+
+        private void SetupTopBarPinDowel()
+        {
+            if (pinDowelGo != null) return;
+            if (Window == null || Window.titleLabel == null) return;
+
+            Transform titleBar = Window.titleLabel.transform.parent;
+            if (titleBar == null) return;
+
+            // Shift title text slightly to the right to cleanly make room for the dowel
+            RectTransform titleRt = Window.titleLabel.rectTransform;
+            if (titleRt.offsetMin.x < 24f)
+            {
+                titleRt.offsetMin = new Vector2(24f, titleRt.offsetMin.y);
+            }
+
+            GameObject pinGo = new GameObject("FacilityWindow_PinDowel", typeof(RectTransform));
+            pinGo.transform.SetParent(titleBar, worldPositionStays: false);
+            pinDowelGo = pinGo;
+
+            RectTransform pinRt = pinGo.GetComponent<RectTransform>();
+            pinRt.anchorMin = new Vector2(0f, 0.5f);
+            pinRt.anchorMax = new Vector2(0f, 0.5f);
+            pinRt.pivot = new Vector2(0.5f, 0.5f);
+            pinRt.sizeDelta = new Vector2(18f, 18f);
+            pinRt.anchoredPosition = new Vector2(12f, 0f);
+
+            pinDowelText = pinGo.AddComponent<TextMeshProUGUI>();
+            pinDowelText.font = Window.titleLabel.font;
+            pinDowelText.fontSize = Window.titleLabel.fontSize;
+            pinDowelText.alignment = TextAlignmentOptions.Center;
+            pinDowelText.text = "●";
+            pinDowelText.raycastTarget = true;
+
+            pinDowelTooltip = pinGo.AddComponent<UITooltipProvider>();
+
+            Button pinBtn = pinGo.AddComponent<Button>();
+            pinBtn.targetGraphic = pinDowelText;
+            ColorBlock cb = pinBtn.colors;
+            cb.normalColor = Color.white;
+            cb.highlightedColor = new Color(1.25f, 1.25f, 1.25f, 1f);
+            cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+            pinBtn.colors = cb;
+
+            pinBtn.onClick.AddListener(() =>
+            {
+                isPinned = !isPinned;
+                UpdatePinDowelVisuals();
+            });
+
+            UpdatePinDowelVisuals();
+        }
+
+        private void UpdatePinDowelVisuals()
+        {
+            if (pinDowelText != null)
+            {
+                pinDowelText.text = isPinned ? "●" : "○";
+                pinDowelText.color = isPinned ? PinnedBronzeColor : UnpinnedOutlineColor;
+            }
+            if (pinDowelTooltip != null)
+            {
+                pinDowelTooltip.TooltipInfo = new TooltipInfo("Window Pin", isPinned ? PinnedTooltipText : UnpinnedTooltipText);
+            }
         }
 
         private void OnRectTransformDimensionsChange()
@@ -135,6 +257,9 @@ namespace PrettyConvenientMenu.UI.Windows
             companyButtonRect = null;
             savedScrollPos = 1.0f;
             savedAnchoredY = 0f;
+            pinDowelGo = null;
+            pinDowelText = null;
+            pinDowelTooltip = null;
             snapshot.Clear();
 
             if (gameObject != null)
@@ -195,24 +320,7 @@ namespace PrettyConvenientMenu.UI.Windows
                 RectTransform scrollRt = builder.VScrollView(scrollBuilder =>
                 {
                     scrollBuilder.AddTitle(snapshot.DisplayName, snapshot.TierDescription);
-
-                    // Top-right floating button to open this industry in the Company Panel
-                    IConfigurableElement btnElem = scrollBuilder.AddButtonCompact("Company Panel", () =>
-                    {
-                        string? indId = currentIndustry?.identifier ?? snapshot.IndustryId;
-                        if (!string.IsNullOrEmpty(indId) && CompanyWindow.Shared != null)
-                        {
-                            CompanyWindow.Shared.ShowIndustry(indId);
-                        }
-                    });
-                    btnElem.Tooltip("Company Panel", "Open this industry in the Company Window.");
-                    companyButtonRect = btnElem.RectTransform;
-                    LayoutElement le = companyButtonRect.GetComponent<LayoutElement>() ?? companyButtonRect.gameObject.AddComponent<LayoutElement>();
-                    le.ignoreLayout = true;
-                    companyButtonRect.anchorMin = new Vector2(1f, 1f);
-                    companyButtonRect.anchorMax = new Vector2(1f, 1f);
-                    companyButtonRect.pivot = new Vector2(1f, 1f);
-                    companyButtonRect.anchoredPosition = new Vector2(-BaseScrollRightPadding, 0f);
+                    BuildCompanyPanelButton(scrollBuilder);
 
                     // 1. Facility-specific Status & Process Header
                     FacilityHeaderSection.Build(scrollBuilder, snapshot);
@@ -235,6 +343,26 @@ namespace PrettyConvenientMenu.UI.Windows
                 ModEntryPoint.Log.Error(ex, $"Failed to render FacilityWindow for '{snapshot.DisplayName}'.");
                 builder.AddLabel("<color=#EF5350><b>Error rendering window content.</b> Check Player.log for details.</color>");
             }
+        }
+
+        private void BuildCompanyPanelButton(UIPanelBuilder scrollBuilder)
+        {
+            IConfigurableElement btnElem = scrollBuilder.AddButtonCompact("Company Panel", () =>
+            {
+                string? indId = currentIndustry?.identifier ?? snapshot.IndustryId;
+                if (!string.IsNullOrEmpty(indId) && CompanyWindow.Shared != null)
+                {
+                    CompanyWindow.Shared.ShowIndustry(indId);
+                }
+            });
+            btnElem.Tooltip("Company Panel", "Open this industry in the Company Window.");
+            companyButtonRect = btnElem.RectTransform;
+            LayoutElement le = companyButtonRect.GetComponent<LayoutElement>() ?? companyButtonRect.gameObject.AddComponent<LayoutElement>();
+            le.ignoreLayout = true;
+            companyButtonRect.anchorMin = new Vector2(1f, 1f);
+            companyButtonRect.anchorMax = new Vector2(1f, 1f);
+            companyButtonRect.pivot = new Vector2(1f, 1f);
+            companyButtonRect.anchoredPosition = new Vector2(-BaseScrollRightPadding, 0f);
         }
 
         /// <summary>

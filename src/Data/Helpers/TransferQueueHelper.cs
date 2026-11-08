@@ -4,6 +4,7 @@ using Model.Ops;
 using Model.Ops.Definition;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.RollingStock;
+using PrettyConvenientMenu.Integration;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.Helpers
@@ -45,11 +46,14 @@ namespace PrettyConvenientMenu.Data.Helpers
                     case IndustryLoader { load: { } outLoad } loader:
                     {
                         string? prefix = !loader.sharedStorage ? loader.subIdentifier : null;
-                        float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
+                        float rawStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
+                        int drawerCount = CountDrawers(industry, loader, outLoad);
+                        float currentStock = drawerCount > 1 ? (rawStock / drawerCount) : rawStock;
                         float nominalRatePerMin = (loader.carLoadRate * contractMultiplier) / 1440f;
+                        float continuousRatePerMin = ResolveContinuousRatePerMin(industry, loader, outLoad, buffers);
                         BufferInfo? matchingBuffer = buffers.FindMatching(loader);
 
-                        SequenceQueue(trackCars, loader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer);
+                        SequenceQueue(trackCars, loader, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer, continuousRatePerMin: continuousRatePerMin);
                         break;
                     }
 
@@ -61,11 +65,14 @@ namespace PrettyConvenientMenu.Data.Helpers
                         }
 
                         string? prefix = !seller.sharedStorage ? seller.subIdentifier : null;
-                        float currentStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
+                        float rawStock = industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f;
+                        int drawerCount = seller.sharedStorage ? CountDrawers(industry, seller, outLoad) : 1;
+                        float currentStock = drawerCount > 1 ? (rawStock / drawerCount) : rawStock;
                         float nominalRatePerMin = seller.carLoadRate / 1440f;
+                        float continuousRatePerMin = ResolveContinuousRatePerMin(industry, seller, outLoad, buffers);
                         BufferInfo? matchingBuffer = buffers.FindMatching(seller, outLoad);
 
-                        SequenceQueue(trackCars, seller, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer);
+                        SequenceQueue(trackCars, seller, outLoad, industry, currentStock, nominalRatePerMin, isUnload: false, matchingBuffer, continuousRatePerMin: continuousRatePerMin);
                         break;
                     }
 
@@ -120,6 +127,81 @@ namespace PrettyConvenientMenu.Data.Helpers
             }
         }
 
+        private static int CountDrawers(Industry industry, IndustryComponent component, Load load)
+        {
+            string storageKey = StorageKeyFor(component, load);
+            int count = 0;
+            List<IndustryComponent>? allComps = industry.Components;
+            if (allComps != null)
+            {
+                for (int i = 0; i < allComps.Count; i++)
+                {
+                    IndustryComponent c = allComps[i];
+                    if (c.FillsCarsFrom(load) && StorageKeyFor(c, load) == storageKey)
+                    {
+                        count++;
+                    }
+                }
+            }
+            return count > 0 ? count : 1;
+        }
+
+        private static string StorageKeyFor(IndustryComponent component, Load load)
+        {
+            if (component.sharedStorage)
+            {
+                return load.id;
+            }
+            return string.IsNullOrEmpty(component.subIdentifier) ? load.id : $"{component.subIdentifier}.{load.id}";
+        }
+
+        private static float ResolveContinuousRatePerMin(
+            Industry industry,
+            IndustryComponent component,
+            Load load,
+            BufferCollection buffers)
+        {
+            // 1. Locate commercial daily rate for this cargo
+            float commercialDailyRate = 0f;
+            for (int i = 0; i < buffers.Count; i++)
+            {
+                if (buffers[i] is CommercialBuffer cb && !cb.IsInput && string.Equals(cb.CargoType, load.id, StringComparison.OrdinalIgnoreCase))
+                {
+                    commercialDailyRate = cb.DailyRate;
+                    break;
+                }
+            }
+
+            if (commercialDailyRate <= 0.001f)
+            {
+                return 0f;
+            }
+
+            float fullRatePerMin = commercialDailyRate / 1440f;
+
+            // 2. Check if MoW Producer Priority is active for this plant & load
+            if (MowProducerPriorityAdapter.TryGetReserveInfo(industry.identifier, load.id, null, out MowReserveInfo reserveInfo) && reserveInfo.IsActive)
+            {
+                if (component is IndustrySeller)
+                {
+                    // While MoW reserve is refilling, it captures 100% of incoming production
+                    return reserveInfo.IsRefilling ? fullRatePerMin : 0f;
+                }
+
+                if (component is IndustryLoaderBase)
+                {
+                    // Commercial shipping only receives production once MoW reserve is satisfied
+                    return reserveInfo.IsRefilling ? 0f : fullRatePerMin;
+                }
+
+                return fullRatePerMin;
+            }
+
+            // 3. Base Game (Vanilla): Split production across all drawers sharing the storage key (Issue #6)
+            int drawerCount = CountDrawers(industry, component, load);
+            return drawerCount > 1 ? (fullRatePerMin / drawerCount) : fullRatePerMin;
+        }
+
         /// <summary>
         /// Sequences unclassified spotted cars at an unloader or loader into active, queued, or blocked states in-place.
         /// </summary>
@@ -132,7 +214,8 @@ namespace PrettyConvenientMenu.Data.Helpers
             float nominalRatePerMin,
             bool isUnload,
             BufferInfo? matchingBuffer,
-            bool multiLoadComponent = false)
+            bool multiLoadComponent = false,
+            float continuousRatePerMin = 0f)
         {
             bool activeAssigned = false;
             float accumulatedMinutes = 0f;
@@ -148,7 +231,8 @@ namespace PrettyConvenientMenu.Data.Helpers
                 ref activeAssigned,
                 ref accumulatedMinutes,
                 multiLoadComponent,
-                allowParallelTransfer: false);
+                allowParallelTransfer: false,
+                continuousRatePerMin: continuousRatePerMin);
         }
 
         /// <summary>
@@ -168,7 +252,8 @@ namespace PrettyConvenientMenu.Data.Helpers
             ref bool activeAssigned,
             ref float accumulatedMinutes,
             bool multiLoadComponent = false,
-            bool allowParallelTransfer = false)
+            bool allowParallelTransfer = false,
+            float continuousRatePerMin = 0f)
         {
             workingCarList.Clear();
 
@@ -215,9 +300,9 @@ namespace PrettyConvenientMenu.Data.Helpers
             }
 
             float remainingBuffer = bufferAvailable;
-            float continuousRatePerMin = (matchingBuffer is CommercialBuffer commBuf && commBuf.DailyRate > 0.001f)
-                ? (commBuf.DailyRate / 1440f)
-                : 0f;
+            float effectiveContinuousRate = continuousRatePerMin > 0.0001f
+                ? continuousRatePerMin
+                : ((matchingBuffer is CommercialBuffer commBuf && commBuf.DailyRate > 0.001f) ? (commBuf.DailyRate / 1440f) : 0f);
 
             float batchDuration = 0f;
 
@@ -231,7 +316,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                     continue;
                 }
 
-                if (remainingBuffer <= load.ZeroThreshold && continuousRatePerMin <= 0.0001f)
+                if (remainingBuffer <= load.ZeroThreshold && effectiveContinuousRate <= 0.0001f)
                 {
                     string action = isUnload ? "Buffer Full" : "Buffer Empty";
                     carInfo.MarkBlocked(action);
@@ -250,9 +335,9 @@ namespace PrettyConvenientMenu.Data.Helpers
                     carMinutes += fromBuffer / nominalRatePerMin;
                 }
                 float unbuffered = remainingTransferAmount - fromBuffer;
-                if (unbuffered > 0.0001f && continuousRatePerMin > 0.0001f)
+                if (unbuffered > 0.0001f && effectiveContinuousRate > 0.0001f)
                 {
-                    carMinutes += unbuffered / continuousRatePerMin;
+                    carMinutes += unbuffered / effectiveContinuousRate;
                 }
 
                 if (carMinutes > batchDuration)
@@ -262,7 +347,7 @@ namespace PrettyConvenientMenu.Data.Helpers
 
                 if (!activeAssigned)
                 {
-                    float currentRate = (fromBuffer > 0.0001f) ? nominalRatePerMin : continuousRatePerMin;
+                    float currentRate = (fromBuffer > 0.0001f) ? nominalRatePerMin : effectiveContinuousRate;
                     string action = isUnload ? "Unloading" : "Loading";
                     carInfo.MarkTransfer(currentRate, TimeSpan.FromMinutes(carMinutes), action);
 

@@ -162,32 +162,39 @@ namespace PrettyConvenientMenu.Data.Buffers
 
             Load? load = overrideLoad;
             bool isUnload = false;
+            BufferRole? targetRole = null;
 
             switch (component)
             {
                 case IndustryUnloader unloader:
                     load ??= unloader.load;
                     isUnload = true;
+                    targetRole = BufferRole.CommercialInput;
                     break;
                 case StorageUnloader:
                     isUnload = true;
+                    targetRole = null;
                     break;
                 case IndustryLoaderBase loader:
                     load ??= loader.load;
                     isUnload = false;
+                    targetRole = BufferRole.CommercialOutput;
                     break;
                 case IndustrySeller seller:
                     load ??= !string.IsNullOrEmpty(seller.loadId) ? CarLoadLibrary.GetLoad(seller.loadId) : null;
                     isUnload = false;
+                    targetRole = BufferRole.MaintenanceReserve;
                     break;
                 case StorageLoader:
                     isUnload = false;
+                    targetRole = null;
                     break;
                 default:
                     if (component.GetType().Name == "GeneralIndustryLoader")
                     {
                         load ??= component.GetType().GetProperty("TargetLoad")?.GetValue(component) as Load;
                         isUnload = false;
+                        targetRole = BufferRole.CommercialOutput;
                     }
                     break;
             }
@@ -195,27 +202,41 @@ namespace PrettyConvenientMenu.Data.Buffers
             if (load == null) return null;
 
             string? prefix = !component.sharedStorage ? component.subIdentifier : null;
-            return FindMatching(load, isUnload, prefix);
+            return FindMatching(load, isUnload, prefix, targetRole);
         }
 
-        private BufferInfo? FindMatching(Load load, bool isUnload, string? storagePrefix = null)
+        private BufferInfo? FindMatching(Load load, bool isUnload, string? storagePrefix = null, BufferRole? targetRole = null)
         {
             foreach (BufferInfo buf in _buffers)
             {
                 if (string.Equals(buf.CargoType, load.id, StringComparison.OrdinalIgnoreCase))
                 {
+                    if (targetRole.HasValue && buf.Role != targetRole.Value)
+                    {
+                        continue;
+                    }
+
                     bool match = buf is not CommercialBuffer comm || (comm.IsInput == isUnload);
                     if (!match) continue;
 
-                    if (!string.IsNullOrEmpty(storagePrefix) && buf is ICompositeBuffer composite)
+                    if (!string.IsNullOrEmpty(storagePrefix))
                     {
-                        foreach (BufferInfo sub in composite.SubBuffers)
+                        if (string.Equals(buf.StoragePrefix, storagePrefix, StringComparison.OrdinalIgnoreCase))
                         {
-                            if (string.Equals(sub.StoragePrefix, storagePrefix, StringComparison.OrdinalIgnoreCase))
+                            return buf;
+                        }
+
+                        if (buf is ICompositeBuffer composite)
+                        {
+                            foreach (BufferInfo sub in composite.SubBuffers)
                             {
-                                return sub;
+                                if (string.Equals(sub.StoragePrefix, storagePrefix, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    return sub;
+                                }
                             }
                         }
+                        continue;
                     }
 
                     return buf;

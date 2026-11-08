@@ -115,5 +115,48 @@ namespace PrettyConvenientMenu.Tests
             Assert.AreSame(landing1, matchL1);
             Assert.IsInstanceOf<CompositeCommercialBuffer>(matchShared);
         }
+
+        [Test]
+        public void FindMatching_WithCommercialOutputAndReserve_RoutesSellerToReserveAndLoaderToOutput()
+        {
+            BufferCollection collection = new BufferCollection();
+            CommercialBuffer commercialOutput = new CommercialBuffer
+            {
+                CargoType = "ties",
+                Role = BufferRole.CommercialOutput,
+                CurrentAmount = 0f,
+                MaxCapacity = 1000f
+            };
+            ReserveBuffer mowReserve = new ReserveBuffer
+            {
+                CargoType = "ties",
+                Role = BufferRole.MaintenanceReserve,
+                CurrentAmount = 33.8f,
+                MaxCapacity = 187.5f
+            };
+
+            collection.Add(commercialOutput);
+            collection.Add(mowReserve);
+
+            Load load = CreateTestLoad("ties", "Ties");
+
+            IndustryLoaderBase loader = new IndustryLoader
+            {
+                loadId = "ties",
+                sharedStorage = true
+            };
+
+            IndustrySeller seller = new IndustrySeller
+            {
+                loadId = "ties",
+                sharedStorage = true
+            };
+
+            BufferInfo? matchedLoader = collection.FindMatching(loader, load);
+            BufferInfo? matchedSeller = collection.FindMatching(seller, load);
+
+            Assert.AreSame(commercialOutput, matchedLoader);
+            Assert.AreSame(mowReserve, matchedSeller);
+        }
     }
 }

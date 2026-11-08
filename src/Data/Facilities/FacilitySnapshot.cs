@@ -19,6 +19,7 @@ namespace PrettyConvenientMenu.Data.Facilities
         public ProductionState State { get; set; } = ProductionState.Idle;
         public string StatusMessage { get; set; } = string.Empty;
         public string DiagnosticAlert { get; set; } = string.Empty;
+        public string? DiagnosticAlertColor { get; set; }
 
         public BufferCollection Buffers { get; } = new BufferCollection();
         public List<FacilityCarGroup> CarGroups { get; } = new List<FacilityCarGroup>(8);
@@ -58,12 +59,12 @@ namespace PrettyConvenientMenu.Data.Facilities
             FacilityType = FacilityType.CommercialFreight;
             CurrentTier = 0;
             TierDescription = string.Empty;
+            Buffers.Clear();
+            CarGroups.Clear();
             State = ProductionState.Idle;
             StatusMessage = string.Empty;
             DiagnosticAlert = string.Empty;
-
-            Buffers.Clear();
-            CarGroups.Clear();
+            DiagnosticAlertColor = null;
         }
 
         public void Reset(Model.Ops.Industry industry, FacilityType facilityType)

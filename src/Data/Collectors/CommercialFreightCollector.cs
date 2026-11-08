@@ -4,12 +4,15 @@ using Model.Ops;
 using Model.Ops.Definition;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
+using PrettyConvenientMenu.Integration;
+using PrettyConvenientMenu.UI.Common;
 
 namespace PrettyConvenientMenu.Data.Collectors
 {
     /// <summary>
     /// Collector for commercial freight industries (factories, logging camps, mines, mills).
     /// Populates commercial buffer states, accumulating multi-landing operations directly into summary cards with SubBuffers.
+    /// Also surfaces dedicated MoW reserves / sales buffers for plants equipped with IndustrySellers.
     /// </summary>
     public sealed class CommercialFreightCollector : IFacilityDataCollector
     {
@@ -94,6 +97,36 @@ namespace PrettyConvenientMenu.Data.Collectors
                     snapshot.Buffers.AddCommercial(outLoad, false, currentStock, loader.maxStorage, dailyRate, formulaPrefix, qualifier);
                 }
             }
+
+            // 3. Process MoW Sellers (Maintenance Reserves / MoW Sales)
+            foreach (IndustryComponent component in components)
+            {
+                if (component is IndustrySeller seller && !string.IsNullOrEmpty(seller.loadId) && CarLoadLibrary.GetLoad(seller.loadId) is { } outLoad)
+                {
+                    bool isMowModActive = MowProducerPriorityAdapter.TryGetReserveInfo(
+                        industry.identifier, outLoad.id, seller.Identifier, out MowReserveInfo reserveInfo) && reserveInfo.IsActive;
+
+                    bool isDecoupled = isMowModActive || !seller.sharedStorage;
+                    string? prefix = isDecoupled ? seller.subIdentifier : null;
+                    string qualifier = isDecoupled ? "MoW Reserve" : "MoW Sales";
+
+                    float currentStock = isMowModActive && reserveInfo.Stock > 0.001f
+                        ? reserveInfo.Stock
+                        : (industry.Storage?.QuantityInStorage(outLoad, prefix) ?? 0f);
+
+                    float maxStorage = (isMowModActive && reserveInfo.Cap > 0.001f)
+                        ? reserveInfo.Cap
+                        : FindMaxStorageForLoad(components, outLoad, null);
+
+                    snapshot.Buffers.AddReserve(
+                        outLoad,
+                        BufferRole.MaintenanceReserve,
+                        currentStock,
+                        Math.Max(0.001f, maxStorage),
+                        prefix ?? seller.subIdentifier,
+                        qualifier);
+                }
+            }
         }
 
         /// <summary>
@@ -173,6 +206,21 @@ namespace PrettyConvenientMenu.Data.Collectors
                     float contractMultiplier = industry.GetContractMultiplier();
                     snapshot.StatusMessage = $"Producing normally at {contractMultiplier * 100f:F0}% throughput.";
                     snapshot.DiagnosticAlert = string.Empty;
+                }
+            }
+
+            // Check for active MoW reserve refill prioritization
+            for (int i = 0; i < snapshot.Buffers.Count; i++)
+            {
+                if (snapshot.Buffers[i] is ReserveBuffer rb && rb.Role == BufferRole.MaintenanceReserve)
+                {
+                    if (MowProducerPriorityAdapter.TryGetReserveInfo(industry.identifier, rb.CargoType, null, out MowReserveInfo rInfo) && rInfo.IsRefilling)
+                    {
+                        float needed = Math.Max(0f, rInfo.Cap - rInfo.Stock);
+                        snapshot.DiagnosticAlert = $"Production prioritized to MoW reserve ({FormatHelper.FormatQuantity(needed, rb.Units)} needed before outbound shipping resumes).";
+                        snapshot.DiagnosticAlertColor = "#FFD54F";
+                        break;
+                    }
                 }
             }
         }

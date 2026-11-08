@@ -11,7 +11,8 @@ namespace PrettyConvenientMenu.UI.Sections
             {
                 builder.AddSection("Advisory Notice", b =>
                 {
-                    b.AddLabel($"<color=#EF5350><b>Notice:</b> {snapshot.DiagnosticAlert}</color>");
+                    string color = snapshot.DiagnosticAlertColor ?? "#EF5350";
+                    b.AddLabel($"<color={color}><b>Notice:</b> {snapshot.DiagnosticAlert}</color>");
                 });
             }
         }

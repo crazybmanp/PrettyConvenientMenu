@@ -11,6 +11,8 @@ namespace PrettyConvenientMenu.UI.Common
 
         public static string GetSupplyRoleBadge() => "<color=#FFE082>[SUPPLY]</color>";
 
+        public static string GetReserveRoleBadge() => "<color=#80CBC4>[MOW RESERVE]</color>";
+
         public static string GetProductionStateBadge(ProductionState state)
         {
             string stateColor = state switch

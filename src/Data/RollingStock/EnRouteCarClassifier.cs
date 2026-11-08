@@ -15,7 +15,6 @@ namespace PrettyConvenientMenu.Data.RollingStock
     {
         public static void ClassifyEnRouteCars(Industry industry, FacilitySnapshot snapshot, OpsController? opsController = null)
         {
-            if (snapshot.FacilityType is FacilityType.CommercialFreight or FacilityType.Depot) return;
             if (industry.Components is not { Count: > 0 } components || TrainController.Shared == null) return;
 
             opsController ??= OpsController.Shared;
@@ -109,13 +108,28 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     continue;
                 }
 
+                if (destComp is TeamTrack)
+                {
+                    (Load? inLoad, float qty, float cap) = CarTrackingHelper.GetCarCargo(car, opsCar);
+                    SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
+                    if (inLoad != null)
+                    {
+                        carInfo.SetLoad(inLoad, qty, cap);
+                    }
+                    carInfo.MarkEnRoute();
+                    snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
+                    continue;
+                }
+
                 if (destComp is StorageLoader or IndustryLoaderBase or IndustrySeller || destComp.GetType().Name == "GeneralIndustryLoader")
                 {
                     Load? outLoad = destComp is IndustryLoaderBase { load: { } lLoad }
                         ? lLoad
-                        : (destComp.GetType().Name == "GeneralIndustryLoader"
-                            ? destComp.GetType().GetProperty("TargetLoad")?.GetValue(destComp) as Load
-                            : (!string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null));
+                        : (destComp is IndustrySeller seller && !string.IsNullOrEmpty(seller.loadId)
+                            ? CarLoadLibrary.GetLoad(seller.loadId)
+                            : (destComp.GetType().Name == "GeneralIndustryLoader"
+                                ? destComp.GetType().GetProperty("TargetLoad")?.GetValue(destComp) as Load
+                                : (!string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null)));
                     if (outLoad == null) continue;
 
                     (float qty, float cap) = opsCar.QuantityOfLoad(outLoad);

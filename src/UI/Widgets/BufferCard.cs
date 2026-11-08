@@ -39,23 +39,18 @@ namespace PrettyConvenientMenu.UI.Widgets
             string maxText = FormatHelper.FormatQuantity(buf.MaxCapacity, buf.Units);
             string pctText = $"{buf.FillRatio * 100f:F0}%";
 
-            string headerLine;
-            if (buf is CommercialBuffer commercial)
+            string badge = (mode, buf.Role) switch
             {
-                headerLine = $"{StatusBadges.GetBufferRoleBadge(commercial.IsInput)} <b>{buf.CargoDisplayName}</b>:  {currentText} / {maxText}  ({pctText})";
-            }
-            else if (mode == BufferCardMode.EngineSupply)
-            {
-                headerLine = $"{StatusBadges.GetSupplyRoleBadge()} <b>{buf.CargoDisplayName}</b>:  {currentText} / {maxText}  ({pctText})";
-            }
-            else
-            {
-                headerLine = $"<b>{buf.CargoDisplayName}</b>:  {currentText} / {maxText}  ({pctText})";
-            }
-            builder.AddLabel(headerLine);
+                (BufferCardMode.Commercial, BufferRole.CommercialInput) => $"{StatusBadges.GetBufferRoleBadge(true)} ",
+                (BufferCardMode.Commercial, BufferRole.CommercialOutput) => $"{StatusBadges.GetBufferRoleBadge(false)} ",
+                (BufferCardMode.Commercial, BufferRole.MaintenanceReserve) => $"{StatusBadges.GetReserveRoleBadge()} ",
+                (BufferCardMode.EngineSupply, _) => $"{StatusBadges.GetSupplyRoleBadge()} ",
+                _ => string.Empty
+            };
+            builder.AddLabel($"{badge}<b>{buf.CargoDisplayName}</b>:  {currentText} / {maxText}  ({pctText})");
 
-            // 2. Available Amount Line (for Supply & Reserve modes)
-            if (mode == BufferCardMode.EngineSupply || mode == BufferCardMode.MowReserve)
+            // 2. Available Amount Line (for Supply & Reserve modes or maintenance reserves)
+            if (mode == BufferCardMode.EngineSupply || mode == BufferCardMode.MowReserve || buf.Role == BufferRole.MaintenanceReserve)
             {
                 float avail = buf is ReserveBuffer res ? res.AvailableAmount : Math.Max(0f, buf.CurrentAmount - buf.TotalOutbound);
                 string availText = FormatHelper.FormatQuantity(avail, buf.Units);
@@ -90,9 +85,13 @@ namespace PrettyConvenientMenu.UI.Widgets
             }
 
             // 3. Progress Bar with Overlays, Calipers & Optional Landing Stack
-            switch (mode)
+            switch ((mode, buf.Role))
             {
-                case BufferCardMode.Commercial:
+                case (BufferCardMode.Commercial, BufferRole.MaintenanceReserve):
+                case (BufferCardMode.MowReserve, _):
+                    ProgressBarFactory.CreateMowBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
+                    break;
+                case (BufferCardMode.Commercial, _):
                     ProgressBarFactory.CreateCommercialBar(
                         builder,
                         buf.FillRatio,
@@ -102,7 +101,7 @@ namespace PrettyConvenientMenu.UI.Widgets
                         buf.ScheduledInboundRatio,
                         landingStack);
                     break;
-                case BufferCardMode.EngineSupply:
+                case (BufferCardMode.EngineSupply, _):
                     if (buf is ReserveBuffer repairBuf && repairBuf.IsRepairParts)
                     {
                         float cap = buf.MaxCapacity;
@@ -114,9 +113,6 @@ namespace PrettyConvenientMenu.UI.Widgets
                     {
                         ProgressBarFactory.CreateEngineSupplyBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
                     }
-                    break;
-                case BufferCardMode.MowReserve:
-                    ProgressBarFactory.CreateMowBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
@@ -142,7 +138,7 @@ namespace PrettyConvenientMenu.UI.Widgets
             }
 
             // 5. En-Route Row (Committed / Inbound) - Skipped for repair parts since metric rows display Arriving
-            if (!isRepairPartsBuffer && (mode == BufferCardMode.EngineSupply || mode == BufferCardMode.MowReserve))
+            if (!isRepairPartsBuffer && (mode == BufferCardMode.EngineSupply || mode == BufferCardMode.MowReserve || buf.Role == BufferRole.MaintenanceReserve))
             {
                 bool hasEnRouteRow = buf.CommittedOutbound > 0.001f || buf.ScheduledInbound > 0.001f;
                 if (hasEnRouteRow)

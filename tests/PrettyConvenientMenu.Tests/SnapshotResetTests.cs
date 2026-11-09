@@ -21,9 +21,9 @@ namespace PrettyConvenientMenu.Tests
                 CurrentTier = 2,
                 TierDescription = "Tier 2",
                 State = ProductionState.Running,
-                StatusMessage = "Running",
-                DiagnosticAlert = "Alert"
+                StatusMessage = "Running"
             };
+            snapshot.AddAlert("Alert", "#FFD54F");
 
             snapshot.Buffers.Add(new CommercialBuffer());
 
@@ -38,6 +38,7 @@ namespace PrettyConvenientMenu.Tests
             Assert.AreEqual(1, snapshot.InboundCars.Count());
             Assert.AreEqual(1, snapshot.OutboundCars.Count());
             Assert.AreEqual(2, snapshot.TotalCarCount);
+            Assert.AreEqual(1, snapshot.DiagnosticAlerts.Count);
 
             snapshot.Clear();
 
@@ -48,7 +49,7 @@ namespace PrettyConvenientMenu.Tests
             Assert.AreEqual(string.Empty, snapshot.TierDescription);
             Assert.AreEqual(ProductionState.Idle, snapshot.State);
             Assert.AreEqual(string.Empty, snapshot.StatusMessage);
-            Assert.AreEqual(string.Empty, snapshot.DiagnosticAlert);
+            Assert.IsEmpty(snapshot.DiagnosticAlerts);
 
             Assert.IsEmpty(snapshot.Buffers);
             Assert.IsEmpty(snapshot.InboundCars);

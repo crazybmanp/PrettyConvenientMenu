@@ -13,7 +13,6 @@ namespace PrettyConvenientMenu.Data.Collectors
             snapshot.TierDescription = "Station & House Track";
             snapshot.State = ProductionState.Idle;
             snapshot.StatusMessage = "House track open for local freight shipments and car spotting.";
-            snapshot.DiagnosticAlert = string.Empty;
         }
 
         public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)

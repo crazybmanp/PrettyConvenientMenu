@@ -18,8 +18,12 @@ namespace PrettyConvenientMenu.Data.Facilities
         public string TierDescription { get; set; } = string.Empty;
         public ProductionState State { get; set; } = ProductionState.Idle;
         public string StatusMessage { get; set; } = string.Empty;
-        public string DiagnosticAlert { get; set; } = string.Empty;
-        public string? DiagnosticAlertColor { get; set; }
+        public List<FacilityAdvisory> DiagnosticAlerts { get; } = new List<FacilityAdvisory>(4);
+
+        public void AddAlert(string message, string? overrideColor = null)
+        {
+            DiagnosticAlerts.Add(new FacilityAdvisory(message, overrideColor));
+        }
 
         public BufferCollection Buffers { get; } = new BufferCollection();
         public List<FacilityCarGroup> CarGroups { get; } = new List<FacilityCarGroup>(8);
@@ -63,8 +67,7 @@ namespace PrettyConvenientMenu.Data.Facilities
             CarGroups.Clear();
             State = ProductionState.Idle;
             StatusMessage = string.Empty;
-            DiagnosticAlert = string.Empty;
-            DiagnosticAlertColor = null;
+            DiagnosticAlerts.Clear();
         }
 
         public void Reset(Model.Ops.Industry industry, FacilityType facilityType)

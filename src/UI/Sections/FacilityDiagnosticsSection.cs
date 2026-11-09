@@ -7,12 +7,16 @@ namespace PrettyConvenientMenu.UI.Sections
     {
         public static void Build(UIPanelBuilder builder, FacilitySnapshot snapshot)
         {
-            if (!string.IsNullOrEmpty(snapshot.DiagnosticAlert))
+            if (snapshot.DiagnosticAlerts.Count > 0)
             {
                 builder.AddSection("Advisory Notice", b =>
                 {
-                    string color = snapshot.DiagnosticAlertColor ?? "#EF5350";
-                    b.AddLabel($"<color={color}><b>Notice:</b> {snapshot.DiagnosticAlert}</color>");
+                    for (int i = 0; i < snapshot.DiagnosticAlerts.Count; i++)
+                    {
+                        FacilityAdvisory alert = snapshot.DiagnosticAlerts[i];
+                        string color = alert.OverrideColor ?? "#EF5350";
+                        b.AddLabel($"<color={color}><b>Notice:</b> {alert.Message}</color>");
+                    }
                 });
             }
         }

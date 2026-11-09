@@ -17,7 +17,6 @@ namespace PrettyConvenientMenu.Data.Collectors
             snapshot.TierDescription = "Locomotive Service Facility";
             snapshot.State = ProductionState.Running;
             snapshot.StatusMessage = "Terminal reserves ready for locomotive fueling, servicing, and repair.";
-            snapshot.DiagnosticAlert = string.Empty;
         }
 
         public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)
@@ -59,7 +58,6 @@ namespace PrettyConvenientMenu.Data.Collectors
         {
             // Engine terminals are servicing depots with optional supplies (e.g. diesel, coal, sand, repair parts).
             // Empty reserves are normal operational state (e.g. running an all-steam roster) and do not halt operations.
-            snapshot.DiagnosticAlert = string.Empty;
         }
     }
 }

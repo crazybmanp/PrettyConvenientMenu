@@ -215,7 +215,7 @@ namespace PrettyConvenientMenu.Data.Helpers
             bool isUnload,
             BufferInfo? matchingBuffer,
             bool multiLoadComponent = false,
-            float continuousRatePerMin = 0f)
+            float? continuousRatePerMin = null)
         {
             bool activeAssigned = false;
             float accumulatedMinutes = 0f;
@@ -253,7 +253,7 @@ namespace PrettyConvenientMenu.Data.Helpers
             ref float accumulatedMinutes,
             bool multiLoadComponent = false,
             bool allowParallelTransfer = false,
-            float continuousRatePerMin = 0f)
+            float? continuousRatePerMin = null)
         {
             workingCarList.Clear();
 
@@ -300,8 +300,8 @@ namespace PrettyConvenientMenu.Data.Helpers
             }
 
             float remainingBuffer = bufferAvailable;
-            float effectiveContinuousRate = continuousRatePerMin > 0.0001f
-                ? continuousRatePerMin
+            float effectiveContinuousRate = continuousRatePerMin.HasValue
+                ? continuousRatePerMin.Value
                 : ((matchingBuffer is CommercialBuffer commBuf && commBuf.DailyRate > 0.001f) ? (commBuf.DailyRate / 1440f) : 0f);
 
             float batchDuration = 0f;
@@ -320,7 +320,6 @@ namespace PrettyConvenientMenu.Data.Helpers
                 {
                     string action = isUnload ? "Buffer Full" : "Buffer Empty";
                     carInfo.MarkBlocked(action);
-                    UpdateActiveBuffer(matchingBuffer, remainingTransferAmount, isUnload);
                     continue;
                 }
 

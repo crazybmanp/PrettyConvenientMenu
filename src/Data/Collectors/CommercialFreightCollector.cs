@@ -138,7 +138,7 @@ namespace PrettyConvenientMenu.Data.Collectors
             {
                 snapshot.State = ProductionState.Idle;
                 snapshot.StatusMessage = "No active contract tier set.";
-                snapshot.DiagnosticAlert = "Establish a contract in the company window to begin operations.";
+                snapshot.AddAlert("Establish a contract in the company window to begin operations.");
                 return;
             }
 
@@ -180,13 +180,13 @@ namespace PrettyConvenientMenu.Data.Collectors
             {
                 snapshot.State = ProductionState.Starved;
                 snapshot.StatusMessage = "Raw input material depleted.";
-                snapshot.DiagnosticAlert = $"Input buffer depleted: {starvedInputCargo}. Spot loaded cars on inbound spurs to resume production.";
+                snapshot.AddAlert($"Input buffer depleted: {starvedInputCargo}. Spot loaded cars on inbound spurs to resume production.");
             }
             else if (blockedOutputCount > 0 && blockedOutputCount == totalOutputCount)
             {
                 snapshot.State = ProductionState.Blocked;
                 snapshot.StatusMessage = "All output buffers full.";
-                snapshot.DiagnosticAlert = "Output buffer is full. Spot empty cars on outbound spurs to resume production.";
+                snapshot.AddAlert("Output buffer is full. Spot empty cars on outbound spurs to resume production.");
             }
             else
             {
@@ -194,18 +194,17 @@ namespace PrettyConvenientMenu.Data.Collectors
                 if (blockedOutputCount > 0)
                 {
                     snapshot.StatusMessage = $"Producing normally ({blockedOutputCargo} buffer full).";
-                    snapshot.DiagnosticAlert = $"Notice: {blockedOutputCargo} output buffer is full. Spot empty cars on outbound spurs.";
+                    snapshot.AddAlert($"{blockedOutputCargo} output buffer is full. Spot empty cars on outbound spurs.", "#FFD54F");
                 }
                 else if (starvedInputCount > 0)
                 {
                     snapshot.StatusMessage = $"Producing normally ({starvedInputCargo} input depleted).";
-                    snapshot.DiagnosticAlert = $"Notice: {starvedInputCargo} depleted. Spot loaded cars on inbound spurs.";
+                    snapshot.AddAlert($"{starvedInputCargo} input depleted. Spot loaded cars on inbound spurs.", "#FFD54F");
                 }
                 else
                 {
                     float contractMultiplier = industry.GetContractMultiplier();
                     snapshot.StatusMessage = $"Producing normally at {contractMultiplier * 100f:F0}% throughput.";
-                    snapshot.DiagnosticAlert = string.Empty;
                 }
             }
 
@@ -217,9 +216,7 @@ namespace PrettyConvenientMenu.Data.Collectors
                     if (MowProducerPriorityAdapter.TryGetReserveInfo(industry.identifier, rb.CargoType, null, out MowReserveInfo rInfo) && rInfo.IsRefilling)
                     {
                         float needed = Math.Max(0f, rInfo.Cap - rInfo.Stock);
-                        snapshot.DiagnosticAlert = $"Production prioritized to MoW reserve ({FormatHelper.FormatQuantity(needed, rb.Units)} needed before outbound shipping resumes).";
-                        snapshot.DiagnosticAlertColor = "#FFD54F";
-                        break;
+                        snapshot.AddAlert($"{rb.CargoDisplayName} production prioritized to MoW reserve ({FormatHelper.FormatQuantity(needed, rb.Units)} needed before outbound shipping resumes).", "#FFD54F");
                     }
                 }
             }

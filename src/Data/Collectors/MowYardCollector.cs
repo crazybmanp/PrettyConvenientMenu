@@ -16,7 +16,6 @@ namespace PrettyConvenientMenu.Data.Collectors
             snapshot.TierDescription = "Maintenance of Way Material Depot";
             snapshot.State = ProductionState.Running;
             snapshot.StatusMessage = "Material reserves and staging tracks for track maintenance work trains.";
-            snapshot.DiagnosticAlert = string.Empty;
         }
 
         public void PopulateBuffers(Industry industry, FacilitySnapshot snapshot)
@@ -55,7 +54,6 @@ namespace PrettyConvenientMenu.Data.Collectors
 
         public void EvaluateFacilityDiagnostics(Industry industry, FacilitySnapshot snapshot)
         {
-            snapshot.DiagnosticAlert = string.Empty;
         }
     }
 }

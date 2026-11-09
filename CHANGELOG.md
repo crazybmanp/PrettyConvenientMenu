@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+- Added single-window mode and window pinning support, with a mod preference to keep a single facility monitor open and pin specific windows (#8).
+- Added integration with Ashenmare's MoW Producer Priority mod, displaying dedicated MoW reserve buffers, refill progress, and status alerts at commercial producers.
+- Expanded and unified en-route car tracking and buffer caliper projections across all commercial freight and facility types (#2).
+- Fixed base game transfer queues splitting continuous production rates evenly across all active drawers (loaders/sellers) sharing storage (#6).
+- Refactored facility advisory system to support multiple concurrent notices with optional color overrides, explicitly reporting refill requirements per commodity.
+- Fixed false `Loading` status and buffer accumulation on empty commercial outputs when production is prioritized to MoW reserves.
+- Refined MoW reserve buffer cards to display clean cargo names without badges on dedicated MoW yards.
+
 ## 0.3.1
 - Implemented support for crzbp.GeneralWaybilling mod
 - Changed some core logic to be more stable

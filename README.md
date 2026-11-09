@@ -14,6 +14,7 @@ You can open the monitor for an industry or service facility by clicking on its 
 
 ### Window Links & Navigation
 
+- **Window Pinning & Single-Window Mode:** Each window features an interactive pin toggle in the title bar (`○` unpinned / `●` pinned). By default, newly opened facility monitors are unpinned—opening a monitor for another industry or track automatically closes any unpinned monitor and takes its exact screen position, keeping your screen clutter-free. If you want to keep one or more windows open while inspecting other facilities (e.g. keeping your main yard or engine house visible while switching an industry), click the pin toggle (`●`) to lock it in place.
 - **Company Panel Button:** Click the **Company Panel** button in the top-right corner of the monitor window to jump directly to that industry's page in the native Company window.
 - **Car Inspector Links:** Every car in the rolling stock table is clickable. Click a car's reporting mark to open its native **Car Inspector** window, or **Shift-click** to select the car.
 
@@ -21,7 +22,7 @@ You can open the monitor for an industry or service facility by clicking on its 
 
 ## Settings & Keybinds
 
-You can customize click behavior and configure modifier keys in-game:
+You can customize click behavior, modifier keys, and window pinning in-game:
 
 1. Open Railroader's **Preferences** menu (press `Esc` or click the gear icon).
 2. Select the **Mods** tab.
@@ -33,6 +34,7 @@ You can customize click behavior and configure modifier keys in-game:
 | :--- | :--- | :--- | :--- |
 | **Track Click Modifier** | `None`, `Any`, `Control`, `Alt`, `Shift` | `None` | Modifier key required when clicking tracks or rails in the world to open the facility monitor. |
 | **Building Click Modifier** | `None`, `Any`, `Control`, `Alt`, `Shift` | `None` | Modifier key required when clicking buildings, loading docks, or facility structures in the world to open the facility monitor. |
+| **Pin Windows by Default** | `true` / `false` | `false` | When enabled, newly opened facility windows are pinned by default. When disabled (default), opening a new window automatically closes unpinned windows to maintain a single active window. |
 
 ### How the Modifier Modes Work
 
@@ -107,7 +109,7 @@ Groups all stationary cars at the facility by the specific spur or service track
 
 ## Multiplayer
 
-Multiplayer support is currently **untested**. While the mod only reads local industry and car state, some data may only be available on the host.
+Multiplayer has been playtested and confirmed working in cooperative sessions.
 
 ---
 

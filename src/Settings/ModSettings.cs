@@ -24,7 +24,7 @@ namespace PrettyConvenientMenu.Settings
         public ClickModifierMode BuildingModifier { get; set; } = ClickModifierMode.None;
 
         [JsonProperty("pinByDefault")]
-        public bool PinByDefault { get; set; } = true;
+        public bool PinByDefault { get; set; } = false;
 
         [JsonProperty("modifier")]
         [JsonConverter(typeof(StringEnumConverter))]
@@ -79,7 +79,7 @@ namespace PrettyConvenientMenu.Settings
                 FilePath = settingsPath,
                 TrackModifier = ClickModifierMode.None,
                 BuildingModifier = ClickModifierMode.None,
-                PinByDefault = true
+                PinByDefault = false
             };
 
             fresh.Save();

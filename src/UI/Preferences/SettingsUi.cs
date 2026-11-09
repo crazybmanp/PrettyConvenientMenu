@@ -40,7 +40,7 @@ namespace PrettyConvenientMenu.UI.Preferences
                 SettingField.Bool(
                     "pinByDefault",
                     "Pin Windows by Default",
-                    true,
+                    false,
                     true,
                     "When enabled, newly opened facility windows are pinned by default. When disabled, opening a new window automatically closes unpinned windows."
                 ),

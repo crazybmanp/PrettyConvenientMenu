@@ -1,14 +1,27 @@
 #nullable disable
 #pragma warning disable
-// SettingsSection.cs (Revision 8)
+// SettingsSection.cs (Revision 10)
 // A settings editor for a Railroader mod, shown in Preferences > Mods (from the main menu and in game). Every mod that
 // carries this file shares one Mods tab.
 //
 // USE
 //   1. Copy this file into your mod. Change only the namespace line.
-//   2. Make a SettingsSection with your fields (SettingField.Bool, Int, Float, Choice) and your settings.json path.
+//   2. Make a SettingsSection with your fields (SettingField.Bool, Int, Float, Choice, IntSlider, FloatSlider, Color,
+//      Heading) and your settings.json path. A slider field is a number field drawn as a slider: same key, same saved
+//      value.
 //   3. Load: PreferencesModsTab.Add(harmony, b => section.Build(b, true), log). Unload: PreferencesModsTab.Remove().
 //   4. Your mod reads settings.json itself at load. `applied` gets the saved file (a JObject) when the player saves.
+//   5. Options, chained on a field (each returns a new field; a field without them draws and saves as before):
+//        .Limits(min, max)   a number's range from other fields, either may be null: .Limits(max: s => s["high"])
+//                            (a second .Limits keeps the first's limits and replaces only the ones it gives)
+//        .ValueLabel(text)   a number's or slider's live text, from its value as shown and the other fields:
+//                            .ValueLabel((v, s) => Math.Round(v * s["length"] / 100) + " m")
+//        .ShowWhen(show)     the row shows only while this is true: .ShowWhen(s => s.On("enabled"))
+//      s is a SettingValues: the other fields' values as the rows show them now, saved or not (s["key"] a number, a
+//      toggle 1 or 0, a choice its index, a color 0xRRGGBB; s.On("key"); s.Option("key") a choice's text).
+//      A mod using Limits reads its settings itself as before, then in the NoInlining start that makes the section,
+//      inside its try: settings = section.Current()?.ToObject<YourSettings>() ?? settings. It then runs the held
+//      values. Current() is the saved settings.json as the mod's own read gets it, held; never unsaved edits.
 //
 // RULES
 //   - Every copy stays identical except the namespace. If you change the file, bump Revision and keep the shared-tab
@@ -20,15 +33,52 @@
 //   - The tab's Harmony patch is applied by hand, never by attribute, so your own PatchAll can't sweep it in.
 //
 // BEHAVIOR
-//   - Rows: a toggle, a dropdown, or - number + held between min and max. The default shows dimmed, help is in the
-//     tooltip, and fields the mod reads only at load are tagged "after restart".
+//   - Rows: a toggle, a dropdown, a slider, a color, or - number + held between min and max. The default shows dimmed
+//     beside a toggle, dropdown, color or number (a slider's is in its tooltip), help is in the tooltip, and fields the
+//     mod reads only at load are tagged "after restart".
+//   - A slider has an optional text at each end ("Steam", "Diesel"); the handle shows the number, so there is no
+//     separate value text (ValueText is accepted and not drawn). It moves in steps of Step from Min, and the last stop
+//     is Max. Dragging edits the value like typing does; Save, Undo and Reset work the same. The number is not typed on
+//     a slider row. Keep an end text to 14 characters (a longer one is cut with "..."). A FloatSlider shows at least as
+//     many decimals as its step has.
+//   - Every label in a section keeps one size: a long label wraps to a second line (the game's own field label would
+//     shrink it to fit, so long ones would be smaller than the rest) and its row grows to hold both lines, so rows
+//     never overlap. A label that needs a third line shows two lines, with "..." at the end of the second. A single
+//     word wider than the label (about 17 capitals) can't wrap: keep words short. The label's full text is in the
+//     row's tooltip.
 //   - Choices are saved as their text. Text that matches no option (ignoring case and outer spaces) falls back to the
 //     default for that one setting.
 //   - Numbers: "1,000" and "1 000" are a thousand; "12,5" is 12.5 where decimals are allowed. Input that reads two ways
 //     ("1.000", "0,125") is refused, never guessed.
-//   - Saving re-reads the file, keeps keys it doesn't know, and writes atomically (temp file, then replace). A file it
-//     couldn't read is never written over.
+//   - Saving re-reads the file, keeps every key that isn't one of its fields, and writes atomically (temp file, then
+//     replace). A file it couldn't read is never written over. A field's key in other capitals ("ON") is saved as the
+//     field's own key ("on").
+//   - settings.json is read the way the mod's own read (JsonConvert into its settings class: bool, int, float, string)
+//     reads it, so the rows, the status line and Current() show what the mod runs. Only NaN in a number isn't: the
+//     mod takes it, and here it counts as a bad value. Save writes infinity (1e39 in a float) as Max or Min, and says
+//     so when it changed the file but no setting.
 //   - A status line says when the mod isn't running what's shown (a bad value, a hand edit, a failed apply).
+//   - Limits: a number is held inside its range as other fields change, and its row shows the held number; the number
+//     the player set comes back if the range opens again before a save. Save writes the held number. A number in the
+//     file outside its range is shown held and the file keeps it until the player saves. Ranges are worked out in
+//     field order from the held values, again until nothing moves; Min and Max stay the outer bounds, a limit is
+//     rounded inward to the field's decimals, and a lower limit above the upper one wins. A limit that throws or
+//     isn't a number is ignored. Limits and ShowWhen that depend on each other in a loop may never settle: after one
+//     pass per field and one more, the rows show and Save writes what the last pass left, which can break a limit
+//     (logged once). Keep them free of loops.
+//     Clicking into a held number and out again changes nothing.
+//   - ShowWhen: a hidden row keeps its value, unheld, and is saved as it is.
+//   - ValueLabel: after the slider's right end text or the number's + button, one line in a fixed width.
+//   - Color: the game's color dropdown (swatch, picker and a hex box), with the default dimmed beside it, saved as
+//     "#RRGGBB". The box and the file take #RRGGBB or #RGB (the # optional, any case). Anything else keeps the
+//     color; in the file it means the default, so read yours with SettingField.TryColor and the mod agrees.
+//   - Heading: a small heading between rows. It has no key and saves nothing.
+//   - The Mods tab: the newest revision of this file present draws it, mods A to Z by name, with a search box at the
+//     top that finds mods by name and settings by label, on Enter. A section joins the search as it draws; nothing to
+//     call. Under a search, a mod of an older revision draws only when its name matches. How it works:
+//     PreferencesModsTab, ModsOrder, ModsSearch.
+//   - Limits, ValueLabel and ShowWhen functions run when a value changes, never per frame. One that throws is logged
+//     once (a ShowWhen then shows its row, a ValueLabel shows nothing).
 //   - Reset to defaults asks first. Nothing runs per frame: rows are built when the game builds the panel, edits update
 //     in place, and a click asks the game for a rebuild after it, never inside it.
 //   - Nothing throws into the game; each problem is logged once.
@@ -52,7 +102,7 @@ using UnityEngine;
 
 namespace PrettyConvenientMenu.UI.Preferences
 {
-    internal enum SettingKind { Bool, Int, Float, Choice }
+    internal enum SettingKind { Bool, Int, Float, Choice, Color, Heading }
 
     internal sealed class SettingField
     {
@@ -62,12 +112,16 @@ namespace PrettyConvenientMenu.UI.Preferences
         internal readonly int Decimals;
         internal readonly bool Live;   // true: the mod reads it each time it's used, so a save takes effect at once
         internal readonly string[] Options;   // Choice only: the texts written to the file, in dropdown order
+        internal readonly bool Slider;        // Int or Float drawn as a slider (same key and saved value as without)
+        internal readonly string LeftLabel, RightLabel, ValueText;   // slider only: the end texts; ValueText is kept, not drawn
 
         private SettingField(string key, string label, SettingKind kind, double def, double min, double max, double step,
-                             int decimals, bool live, string help, string[] options = null)
+                             int decimals, bool live, string help, string[] options = null, bool slider = false,
+                             string left = null, string right = null, string valueText = null)
         {
             Key = key; Label = label; Kind = kind; Default = def; Min = min; Max = max; Step = step;
             Decimals = decimals; Live = live; Help = help; Options = options;
+            Slider = slider; LeftLabel = left; RightLabel = right; ValueText = valueText;
         }
 
         internal static SettingField Bool(string key, string label, bool def, bool live, string help) =>
@@ -79,6 +133,26 @@ namespace PrettyConvenientMenu.UI.Preferences
         internal static SettingField Float(string key, string label, double def, double min, double max, double step,
                                            int decimals, bool live, string help) =>
             new SettingField(key, label, SettingKind.Float, def, min, max, step > 0 ? step : 1, Math.Max(0, decimals), live, help);
+
+        // An Int drawn as a slider: left and right are the texts at the two ends (either may be null), valueText the
+        // value's text with {0} for the number ("{0}% steam"; null shows the number alone). Saved like Int.
+        internal static SettingField IntSlider(string key, string label, int def, int min, int max, int step, bool live,
+                                               string help, string left, string right, string valueText = null) =>
+            new SettingField(key, label, SettingKind.Int, def, min, max, Math.Max(1, step), 0, live, help, null, true, left, right, valueText);
+
+        // A Float drawn as a slider. Saved like Float (same decimals, but never fewer than its step needs).
+        internal static SettingField FloatSlider(string key, string label, double def, double min, double max, double step,
+                                                 int decimals, bool live, string help, string left, string right, string valueText = null) =>
+            new SettingField(key, label, SettingKind.Float, def, min, max, step > 0 ? step : 1,
+                             Math.Max(Math.Max(0, decimals), PlacesOf(step > 0 ? step : 1)), live, help, null, true, left, right, valueText);
+
+        // The decimals a step needs to show exactly (0.05 needs 2), up to 6. A slider whose step is finer than its
+        // decimals would round two stops to the same shown value, so FloatSlider raises its decimals to this.
+        private static int PlacesOf(double step)
+        {
+            for (int d = 0; d < 6; d++) if (Math.Abs(Math.Round(step, d) - step) < 1e-9) return d;
+            return 6;
+        }
 
         // One of a fixed list of texts, shown as a dropdown. Held as the option's index; the file holds its text.
         internal static SettingField Choice(string key, string label, string[] options, int def, bool live, string help)
@@ -103,13 +177,127 @@ namespace PrettyConvenientMenu.UI.Preferences
                 if (string.Equals(Options[i], t, StringComparison.OrdinalIgnoreCase)) return i;
             return -1;
         }
+
+        // A color, saved as "#RRGGBB"; def is like "#4A7F2C". Drawn with the game's color dropdown.
+        internal static SettingField Color(string key, string label, string def, bool live, string help)
+        {
+            if (!TryColor(def, out int rgb)) throw new ArgumentException(key + ": a color's default must be like #RRGGBB");
+            return new SettingField(key, label, SettingKind.Color, rgb, 0, 0xFFFFFF, 1, 0, live, help);
+        }
+
+        // A small heading between rows. It has no key and saves nothing.
+        internal static SettingField Heading(string text) => new SettingField(null, text, SettingKind.Heading, 0, 0, 0, 1, 0, true, null);
+
+        // Reads a color the way the section does: #RRGGBB or #RGB, the # optional, any case, outer spaces ignored.
+        // rgb is 0xRRGGBB. False for anything else (a name, an alpha, a stray character).
+        internal static bool TryColor(string text, out int rgb)
+        {
+            rgb = 0;
+            string s = (text ?? "").Trim();
+            if (s.Length > 0 && s[0] == '#') s = s.Substring(1);
+            if (s.Length != 3 && s.Length != 6) return false;
+            int v = 0;
+            foreach (char ch in s)
+            {
+                int d = ch >= '0' && ch <= '9' ? ch - '0' : ch >= 'a' && ch <= 'f' ? ch - 'a' + 10 : ch >= 'A' && ch <= 'F' ? ch - 'A' + 10 : -1;
+                if (d < 0) return false;
+                v = s.Length == 3 ? v * 256 + d * 17 : v * 16 + d;
+            }
+            rgb = v;
+            return true;
+        }
+
+        // 0xRRGGBB as "#RRGGBB", capitals.
+        internal static string ColorHex(int rgb) => "#" + (rgb & 0xFFFFFF).ToString("X6", CultureInfo.InvariantCulture);
+
+        // The options, null when unused. Set through Limits, ValueLabel and ShowWhen, which return a copy.
+        internal Func<SettingValues, double> MinOf { get; private set; }
+        internal Func<SettingValues, double> MaxOf { get; private set; }
+        internal Func<double, SettingValues, string> ValueLabelOf { get; private set; }
+        internal Func<SettingValues, bool> ShowIf { get; private set; }
+
+        // A number whose range follows other fields: min and max (either may be null) give the limits from the
+        // section's current values. Min and Max stay the outer bounds. A limit left null keeps one an earlier
+        // .Limits gave, so .Limits(min: a).Limits(max: b) has both.
+        internal SettingField Limits(Func<SettingValues, double> min = null, Func<SettingValues, double> max = null)
+        {
+            NumbersOnly("Limits");
+            SettingField c = Copy();
+            c.MinOf = min ?? MinOf;
+            c.MaxOf = max ?? MaxOf;
+            return c;
+        }
+
+        // A number's or slider's live text, from its value as shown and the other fields' values.
+        internal SettingField ValueLabel(Func<double, SettingValues, string> text)
+        {
+            NumbersOnly("ValueLabel");
+            SettingField c = Copy();
+            c.ValueLabelOf = text;
+            return c;
+        }
+
+        // The row shows only while show is true. A hidden row keeps its value and is saved as it is.
+        internal SettingField ShowWhen(Func<SettingValues, bool> show)
+        {
+            SettingField c = Copy();
+            c.ShowIf = show;
+            return c;
+        }
+
+        private SettingField Copy() => (SettingField)MemberwiseClone();
+
+        private void NumbersOnly(string what)
+        {
+            if (Kind != SettingKind.Int && Kind != SettingKind.Float) throw new ArgumentException(Key + ": " + what + " is for number fields");
+        }
+
+        internal bool Linked => MinOf != null || MaxOf != null;
+
+        // Has an option, or is a Color or a Heading. A field that isn't takes the plain rows.
+        internal bool Extra => Linked || ValueLabelOf != null || ShowIf != null || Kind == SettingKind.Color || Kind == SettingKind.Heading;
+    }
+
+    // The section's values by key as its rows show them now (held in range, saved or not), for Limits, ValueLabel and
+    // ShowWhen. A toggle is 1 or 0, a choice its option's index, a color 0xRRGGBB. An unknown key throws.
+    internal sealed class SettingValues
+    {
+        private readonly SettingField[] _fields;
+        private readonly double[] _values;
+        private readonly Dictionary<string, int> _at = new Dictionary<string, int>();
+
+        internal SettingValues(SettingField[] fields, double[] values)
+        {
+            _fields = fields;
+            _values = values;
+            for (int i = 0; i < fields.Length; i++)
+                if (fields[i].Key != null && !_at.ContainsKey(fields[i].Key)) _at[fields[i].Key] = i;
+        }
+
+        internal double this[string key] => _values[At(key)];
+
+        internal bool On(string key) => _values[At(key)] != 0;
+
+        // A choice's option text.
+        internal string Option(string key)
+        {
+            int i = At(key);
+            if (_fields[i].Kind != SettingKind.Choice) throw new ArgumentException(key + " isn't a choice");
+            return _fields[i].OptionAt(_values[i]);
+        }
+
+        private int At(string key)
+        {
+            if (key != null && _at.TryGetValue(key, out int i)) return i;
+            throw new KeyNotFoundException("no setting " + key);
+        }
     }
 
     internal enum TypedNumber { Ok, NotANumber, Ambiguous }
 
     internal sealed class SettingsSection
     {
-        internal const int Revision = 8;
+        internal const int Revision = 10;
 
         private enum FileState { Missing, Read, Unreadable }
 
@@ -119,9 +307,13 @@ namespace PrettyConvenientMenu.UI.Preferences
         private readonly Action<string> _log;
         private readonly HashSet<string> _logged = new HashSet<string>();
         private readonly UIState<bool> _expanded = new UIState<bool>(false);
+        private readonly UIState<bool> _searchOpen = new UIState<bool>(true);   // open or closed while a search shows it
+        private string _searchFor;       // the query _searchOpen was last opened for
+        private bool[] _search;          // the rows the search shows in this draw; null: every row
         private readonly double[] _values, _saved;
 
         private bool _loaded, _confirmReset, _showPath, _redraw;
+        private bool _updated;           // the last save changed the file's content (keys added, a spelling dropped)
         private string _stamp;           // the file's size and write time when last read
         private FileState _state = FileState.Missing;
         private string _problem;         // why the file couldn't be read
@@ -130,6 +322,19 @@ namespace PrettyConvenientMenu.UI.Preferences
         private string _behind;          // why the mod isn't running what's shown, until a save it takes puts it right
         private TMP_Text _statusText;    // the status line of the last build, changed in place by edits
 
+        // _values are the values as set (typed, loaded); _held what the rows show and Save writes: each shown field
+        // with Limits held in its range, every other value as set. _shown is which rows ShowWhen shows. _check and
+        // _checkShown are the same worked out from _saved, for what the mod runs. With no field that has an option or
+        // is a Color or Heading (_extras false), _held is a copy of _values and nothing else here runs.
+        private readonly double[] _held, _check;
+        private readonly bool[] _shown, _checkShown;
+        private readonly string[] _labels;              // each ValueLabel's text for the held values
+        private readonly SettingValues _view, _checkView;
+        private readonly bool _extras;
+        private RectTransform[] _rows;                  // the last build's rows, to show or hide in place
+        private TMP_InputField[] _inputs;               // its number boxes, set in place when a held value moves
+        private TMP_Text[] _valueTexts;                 // its value labels
+
         internal SettingsSection(string title, string path, SettingField[] fields, Action<JObject> applied, Action<string> log,
                                  string note = null)
         {
@@ -137,6 +342,17 @@ namespace PrettyConvenientMenu.UI.Preferences
             _values = new double[_fields.Length];
             _saved = new double[_fields.Length];
             for (int i = 0; i < _fields.Length; i++) _values[i] = _saved[i] = _fields[i].Default;
+            int n = _fields.Length;
+            _held = new double[n]; _check = new double[n]; _shown = new bool[n]; _checkShown = new bool[n]; _labels = new string[n];
+            _view = new SettingValues(_fields, _held);
+            _checkView = new SettingValues(_fields, _check);
+            for (int i = 0; i < n; i++)
+            {
+                _held[i] = _values[i];
+                _shown[i] = true;
+                if (_fields[i].Extra) _extras = true;
+            }
+            ModsOrder.Made(_title);   // the mod's name in the Mods tab's order, if it is the first section made
             // Read now, while the mod has just read the same file, so a later change on disk is known to be one it
             // hasn't got.
             try { Refresh(); }
@@ -150,14 +366,62 @@ namespace PrettyConvenientMenu.UI.Preferences
         {
             try
             {
-                if (collapsible) b.AddExpandable(_title, _expanded, Content, ExpandableStyle.SectionHeader);
-                else Content(b);
+                if (collapsible)
+                {
+                    // The search (ModsSearch): the box first if this copy draws the tab, then this section as the
+                    // query has it. No query: drawn as always.
+                    string q = null;
+                    try { q = ModsSearch.Begin(this, _title, SearchShows); }
+                    catch (Exception e) { LogOnce("search", _title + ": the search failed: " + PathClean.CleanText(e.Message)); }
+                    if (SearchState(q)) b.AddExpandable(_title, q == null ? _expanded : _searchOpen, Content, ExpandableStyle.SectionHeader);
+                }
+                else { _search = null; Content(b); }
             }
             catch (Exception e)
             {
                 LogOnce("build", _title + ": couldn't draw the settings: " + PathClean.CleanText(e.ToString(), WholeCap));
                 try { b.AddLabel("<color=#E8A33A>" + _title + ": couldn't show the settings. The log says why.</color>"); } catch { }
             }
+        }
+
+        // The rows a search shows: null when the mod's name matches (every row), else one flag per field: a row whose
+        // label matches, every row under a heading that matches, and a heading with any row under it shown. All false:
+        // nothing here matches.
+        internal bool[] SearchRows(string q)
+        {
+            if (ModsSearch.Matches(_title, q)) return null;
+            var show = new bool[_fields.Length];
+            int heading = -1;
+            for (int i = 0; i < _fields.Length; i++)
+            {
+                if (_fields[i].Kind == SettingKind.Heading) { heading = i; show[i] = ModsSearch.Matches(_fields[i].Label, q); continue; }
+                show[i] = ModsSearch.Matches(_fields[i].Label, q) || heading >= 0 && ModsSearch.Matches(_fields[heading].Label, q);
+                if (show[i] && heading >= 0) show[heading] = true;
+            }
+            return show;
+        }
+
+        // Whether the section draws for query q (null: no search), setting the rows it draws. A new query opens it
+        // (_searchOpen), and no query forgets the last one, so the same search opens it again next time.
+        internal bool SearchState(string q)
+        {
+            if (q == null) { _search = null; _searchFor = null; return true; }
+            if (!SearchShows(q)) { _search = null; return false; }
+            _search = SearchRows(q);
+            if (q != _searchFor) { _searchFor = q; _searchOpen.Value = true; }
+            return true;
+        }
+
+        // Whether a search for q shows this section: its name matches, or a row it would draw and ShowWhen shows does.
+        // A row ShowWhen hides is drawn hidden, so it can appear as values change, but it doesn't count here.
+        internal bool SearchShows(string q)
+        {
+            bool[] rows = SearchRows(q);
+            if (rows == null) return true;
+            if (_state == FileState.Unreadable) return false;   // it draws no rows
+            for (int i = 0; i < rows.Length; i++)
+                if (rows[i] && _fields[i].Kind != SettingKind.Heading && _shown[i]) return true;
+            return false;
         }
 
         private bool Dirty
@@ -168,9 +432,16 @@ namespace PrettyConvenientMenu.UI.Preferences
         private void Content(UIPanelBuilder b)
         {
             _statusText = null;
+            if (_extras)
+            {
+                _rows = new RectTransform[_fields.Length];
+                _inputs = new TMP_InputField[_fields.Length];
+                _valueTexts = new TMP_Text[_fields.Length];
+            }
             if (!_redraw) _status = "";   // opened afresh, not redrawn after one of its own clicks
             _redraw = false;
             Refresh();
+            Recompute();   // after an Undo or Reset too
             if (!string.IsNullOrEmpty(_note)) b.AddLabel(Footnote(_note));
             if (_state == FileState.Unreadable)
             {
@@ -183,8 +454,11 @@ namespace PrettyConvenientMenu.UI.Preferences
             {
                 int k = i;
                 SettingField f = _fields[k];
+                if (_search != null && !_search[k]) continue;   // hidden by the search: not drawn, value kept
+                if (f.Extra) { ExtraRow(b, k); continue; }
                 IConfigurableElement row = f.Kind == SettingKind.Bool ? BoolRow(b, k)
                                          : f.Kind == SettingKind.Choice ? ChoiceRow(b, k)
+                                         : f.Slider ? SliderRow(b, k)
                                          : NumberRow(b, k);
                 row.Tooltip(f.Label, HelpText(f));
             }
@@ -197,8 +471,8 @@ namespace PrettyConvenientMenu.UI.Preferences
                     row.AddButtonCompact("Yes, reset", () => Guard("reset", () =>
                     {
                         _confirmReset = false;
-                        bool restart = ChangesNeedRestart(true);
                         for (int i = 0; i < _fields.Length; i++) _values[i] = _fields[i].Default;
+                        bool restart = ChangesNeedRestart();
                         if (SaveFile(out string error, out bool applied))
                             _status = !applied ? NotApplied
                                 : restart ? "Back to the defaults. Takes effect after a restart." : "Back to the defaults. Takes effect now.";
@@ -216,10 +490,10 @@ namespace PrettyConvenientMenu.UI.Preferences
                 {
                     row.AddButtonCompact("Save", () => Guard("save", () =>
                     {
-                        bool changed = Dirty || _behind != null, restart = ChangesNeedRestart(false);
+                        bool restart = ChangesNeedRestart(), changed = Dirty || _behind != null || HeldMoved();
                         if (SaveFile(out string error, out bool applied))
                             _status = !applied ? NotApplied
-                                : !changed ? "Saved. Nothing had changed."
+                                : !changed ? (_updated ? Updated : "Saved. Nothing had changed.")
                                 : restart ? "Saved. Takes effect after a restart." : "Saved. Takes effect now.";
                         else _status = error;
                         _status = WithNote(_status);
@@ -230,6 +504,7 @@ namespace PrettyConvenientMenu.UI.Preferences
                     {
                         _status = Dirty ? "Back to what's saved." : "Nothing to undo.";
                         Array.Copy(_saved, _values, _values.Length);
+                        Recompute();
                         _editNote = null;
                         Redraw(b);
                     }));
@@ -240,7 +515,8 @@ namespace PrettyConvenientMenu.UI.Preferences
             _statusText = b.AddLabel(Footnote(StatusShown())).GetComponent<TMP_Text>();
         }
 
-        private const string NotApplied = "Saved, but the mod couldn't take the new settings now, so they take effect after a restart. The log says why.";
+        private const string NotApplied = "Saved. Takes effect after a restart; the log says why.";
+        private const string Updated = "Saved. No setting changed; settings.json was updated.";
 
         // What the status line says: the last action, else unsaved edits, else why the mod isn't running what's shown.
         private string StatusShown() => _status != "" ? _status : Dirty ? "Not saved yet." : _behind ?? "";
@@ -270,7 +546,7 @@ namespace PrettyConvenientMenu.UI.Preferences
         private IConfigurableElement BoolRow(UIPanelBuilder b, int k)
         {
             SettingField f = _fields[k];
-            return b.AddField(f.Label, b.HStack(row =>
+            return Field(b, f, b.HStack(row =>
             {
                 row.AddToggle(() => _values[k] != 0, on => Guard("toggle", () => { _values[k] = on ? 1 : 0; _editNote = null; Edited(""); }));
                 row.Spacer(8f);
@@ -285,7 +561,7 @@ namespace PrettyConvenientMenu.UI.Preferences
         private IConfigurableElement ChoiceRow(UIPanelBuilder b, int k)
         {
             SettingField f = _fields[k];
-            return b.AddField(f.Label, b.HStack(row =>
+            return Field(b, f, b.HStack(row =>
             {
                 int at = (int)Math.Max(0, Math.Min(f.Options.Length - 1, Math.Round(_values[k])));
                 row.AddDropdown(new List<string>(f.Options), at, i => Guard("choose", () =>
@@ -301,11 +577,109 @@ namespace PrettyConvenientMenu.UI.Preferences
             }));
         }
 
+        // A field row with the game's own label, kept at one size: the game's field-row Label autosizes from 8 to 12
+        // and never wraps, so a long label would come out smaller than the rest. Here it stays at its largest size and
+        // wraps. The game's row is 30 px (a LayoutElement minHeight on the row, the label a fixed 30 px tall because
+        // the row's layout group does not control child height), which holds one line of 14.6 px but not two lines
+        // with room to spare. A label that wraps makes its row taller: the row and the label go to LabelRowHeight and
+        // the label's text box (the rect less LabelPadBottom, split top and bottom) holds two lines (29.3 px) but not a
+        // third (43.9 px), so a third line's worth of text ends in "..." on the second. The game's label aligns its first
+        // line's capline to the middle (prefab vertical alignment Capline), which leaves a second line hanging below; a
+        // wrapped label is set to Middle so both lines sit centered on the row. The label is measured with the
+        // engine's own text measure at a width a little under the label's 150, so a borderline label gets the tall row.
+        internal const float LabelRowHeight = 44f, LabelPadBottom = 8f, LabelMeasureWidth = 146f, LabelLineHeightPt = 109.71f / 90f;
+
+        // Whether a label of this preferred height (measured at 12 pt) needs more than one line.
+        internal static bool LabelWraps(float preferredHeight, float fontSize) => preferredHeight > fontSize * LabelLineHeightPt * 1.5f;
+
+        private static IConfigurableElement Field(UIPanelBuilder b, SettingField f, RectTransform control)
+        {
+            IConfigurableElement e = b.AddField(f.Label, control);
+            try
+            {
+                Transform t = e.RectTransform.Find("Label");
+                TMP_Text label = t != null ? t.GetComponent<TMP_Text>() : null;
+                if (label != null)
+                {
+                    float size = label.fontSizeMax;
+                    label.enableAutoSizing = false;
+                    label.fontSize = size;
+                    label.textWrappingMode = TextWrappingModes.Normal;
+                    label.overflowMode = TextOverflowModes.Ellipsis;
+                    bool wraps;
+                    // Measured as drawn: the game's label style is all caps (FontStyles.UpperCase), wider
+                    // than the text as typed, so a borderline label measured as typed fits one line and
+                    // then wraps without its tall row.
+                    string drawn = (label.fontStyle & FontStyles.UpperCase) != 0 ? label.text.ToUpperInvariant() : label.text;
+                    try { wraps = LabelWraps(label.GetPreferredValues(drawn, LabelMeasureWidth, 0f).y, size); }
+                    catch (Exception) { wraps = f.Label != null && f.Label.Length > 16; }   // can't measure: be safe, give it room
+                    if (wraps)
+                    {
+                        label.margin = new Vector4(0f, LabelPadBottom / 2f, 0f, LabelPadBottom / 2f);
+                        label.verticalAlignment = VerticalAlignmentOptions.Middle;   // both lines centered
+                        label.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, LabelRowHeight);
+                        // The game's field row lays its parts out from the top (prefab child alignment UpperLeft), so
+                        // in a taller row the control would stay at the top while the two lines sit centered below
+                        // it: center the row's parts so the control sits level with the middle of the two lines.
+                        UnityEngine.UI.LayoutGroup rowLayout = e.RectTransform.GetComponent<UnityEngine.UI.LayoutGroup>();
+                        if (rowLayout != null) rowLayout.childAlignment = TextAnchor.MiddleLeft;
+                        UnityEngine.UI.LayoutElement rowFit = e.RectTransform.GetComponent<UnityEngine.UI.LayoutElement>();
+                        if (rowFit != null) rowFit.minHeight = Math.Max(rowFit.minHeight, LabelRowHeight);
+                    }
+                }
+            }
+            catch (Exception) { }
+            return e;
+        }
+
+        // A slider row: the left text, the slider, the right text, the value's text. The slider counts stops (0 to
+        // SliderStops) and the field's value is Min + stop * Step, so Min and Max are reachable whatever the step.
+        private IConfigurableElement SliderRow(UIPanelBuilder b, int k)
+        {
+            SettingField f = _fields[k];
+            return Field(b, f, b.HStack(row =>
+            {
+                if (!string.IsNullOrEmpty(f.LeftLabel)) row.AddLabel(EndText(f.LeftLabel)).VerticalTextAlignment(VerticalAlignmentOptions.Middle);
+                RectTransform slider = row.AddSlider(() => (float)SliderStopOf(f, _values[k]), () => Format(f, _values[k]),
+                    stop => Guard("slide", () => { _values[k] = SliderValueAt(f, stop); _editNote = null; Edited(""); }),
+                    0f, (float)SliderStops(f), true).EqualFlexibleWidth(120f);
+                UnityEngine.UI.LayoutElement fit = slider.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (fit != null) fit.minWidth = 100f;   // the end texts can't squeeze the slider out
+                if (!string.IsNullOrEmpty(f.RightLabel)) row.AddLabel(EndText(f.RightLabel)).VerticalTextAlignment(VerticalAlignmentOptions.Middle);
+                if (!f.Live) { row.Spacer(6f); row.AddLabel(RestartTag); }
+            }));
+        }
+
+        // A slider's end text: no tags, and at most 14 characters (longer is cut and ends in "...").
+        internal static string EndText(string s)
+        {
+            s = Plain(s);
+            if (s.Length <= 14) return s;
+            int n = char.IsHighSurrogate(s[12]) ? 12 : 13;
+            return s.Substring(0, n).TrimEnd() + "...";
+        }
+
+        // The number of steps from Min to Max (the last one may be short, so Max is always a stop).
+        internal static int SliderStops(SettingField f) => Math.Max(1, (int)Math.Ceiling((f.Max - f.Min) / f.Step - 1e-9));
+
+        // The value at a slider stop: Min + stop * Step, rounded like the field, never past Max.
+        internal static double SliderValueAt(SettingField f, double stop) =>
+            Math.Min(f.Max, Math.Max(f.Min, Round(f, f.Min + Math.Round(stop, MidpointRounding.AwayFromZero) * f.Step)));
+
+        // The stop nearest a value, by value (a value from a hand-edited file, between stops, shows at the nearest one
+        // and is kept until the slider is moved). A tie goes to the higher stop; the short last step counts as it is.
+        internal static double SliderStopOf(SettingField f, double v)
+        {
+            int last = SliderStops(f);
+            double lo = Math.Max(0, Math.Min(last, Math.Floor((v - f.Min) / f.Step))), hi = Math.Min(last, lo + 1);
+            return Math.Abs(SliderValueAt(f, hi) - v) <= Math.Abs(v - SliderValueAt(f, lo)) ? hi : lo;
+        }
+
         private IConfigurableElement NumberRow(UIPanelBuilder b, int k)
         {
             SettingField f = _fields[k];
             TMP_InputField input = null;
-            return b.AddField(f.Label, b.HStack(row =>
+            return Field(b, f, b.HStack(row =>
             {
                 row.AddButtonCompact("-", () => Guard("step", () => Step(k, -1, input)));
                 RectTransform rt = row.AddInputField(Format(f, _values[k]), text => Guard("type", () => Typed(k, text, input)), null, 12);
@@ -318,13 +692,141 @@ namespace PrettyConvenientMenu.UI.Preferences
             }));
         }
 
-        // The buttons move to the next whole step (125 -> 150 -> 175), then stay inside min and max.
+        // A field with an option, or a Color or a Heading. Every other field takes the plain rows above. Each row is
+        // kept so ShowWhen can show or hide it in place.
+        private void ExtraRow(UIPanelBuilder b, int k)
+        {
+            SettingField f = _fields[k];
+            RectTransform shape;
+            if (f.Kind == SettingKind.Heading) shape = b.AddLabel("<style=SectionHeader>" + f.Label + "</style>");
+            else
+            {
+                IConfigurableElement row = f.Kind == SettingKind.Bool ? BoolRow(b, k)
+                                         : f.Kind == SettingKind.Choice ? ChoiceRow(b, k)
+                                         : f.Kind == SettingKind.Color ? ColorRow(b, k)
+                                         : f.Slider ? SliderRowExtra(b, k)
+                                         : NumberRowExtra(b, k);
+                row.Tooltip(f.Label, HelpText(f));
+                shape = row.RectTransform;
+            }
+            _rows[k] = shape;
+            if (!_shown[k]) shape.gameObject.SetActive(false);
+        }
+
+        // NumberRow showing the held value, its box kept so a value held by another field's change is shown in place,
+        // and the value label after +.
+        private IConfigurableElement NumberRowExtra(UIPanelBuilder b, int k)
+        {
+            SettingField f = _fields[k];
+            TMP_InputField input = null;
+            return Field(b, f, b.HStack(row =>
+            {
+                row.AddButtonCompact("-", () => Guard("step", () => Step(k, -1, input)));
+                RectTransform rt = row.AddInputField(Format(f, _held[k]), text => Guard("type", () => Typed(k, text, input)), null, 12);
+                rt.Width(72f);
+                input = rt.GetComponent<TMP_InputField>();
+                _inputs[k] = input;
+                row.AddButtonCompact("+", () => Guard("step", () => Step(k, +1, input)));
+                if (f.ValueLabelOf != null) AddValueText(row, k);
+                row.Spacer(8f);
+                row.AddLabel(Dim("default " + Format(f, f.Default)));
+                if (!f.Live) { row.Spacer(6f); row.AddLabel(RestartTag); }
+            }));
+        }
+
+        // SliderRow showing the held value (the game polls the slider's value, so a value held by another field's
+        // change moves the handle too), a drag held in range, and the value label after the right end text.
+        private IConfigurableElement SliderRowExtra(UIPanelBuilder b, int k)
+        {
+            SettingField f = _fields[k];
+            return Field(b, f, b.HStack(row =>
+            {
+                if (!string.IsNullOrEmpty(f.LeftLabel)) row.AddLabel(EndText(f.LeftLabel)).VerticalTextAlignment(VerticalAlignmentOptions.Middle);
+                RectTransform slider = row.AddSlider(() => (float)SliderStopOf(f, _held[k]), () => Format(f, _held[k]),
+                    stop => Guard("slide", () => { _values[k] = HoldIn(k, SliderValueAt(f, stop), _view); _editNote = null; Edited(""); }),
+                    0f, (float)SliderStops(f), true).EqualFlexibleWidth(120f);
+                UnityEngine.UI.LayoutElement fit = slider.GetComponent<UnityEngine.UI.LayoutElement>();
+                if (fit != null) fit.minWidth = 100f;   // the end texts can't squeeze the slider out
+                if (!string.IsNullOrEmpty(f.RightLabel)) row.AddLabel(EndText(f.RightLabel)).VerticalTextAlignment(VerticalAlignmentOptions.Middle);
+                if (f.ValueLabelOf != null) AddValueText(row, k);
+                if (!f.Live) { row.Spacer(6f); row.AddLabel(RestartTag); }
+            }));
+        }
+
+        // A value label: one line in a fixed width, so a slider beside it keeps its size as the text changes; a longer
+        // text ends in "...".
+        internal const float ValueTextWidth = 100f;
+
+        private void AddValueText(UIPanelBuilder row, int k)
+        {
+            row.Spacer(6f);
+            RectTransform rt = row.AddLabel(_labels[k] ?? "").Width(ValueTextWidth);
+            TMP_Text text = rt.GetComponent<TMP_Text>();
+            _valueTexts[k] = text;
+            try
+            {
+                text.textWrappingMode = TextWrappingModes.NoWrap;
+                text.overflowMode = TextOverflowModes.Ellipsis;
+                text.verticalAlignment = VerticalAlignmentOptions.Middle;
+            }
+            catch (Exception) { }
+        }
+
+        // A color: the game's color dropdown (a swatch that opens a picker, a hex box and Default and Apply buttons),
+        // and the default, dimmed. With no dropdown in the game, a hex box instead.
+        private IConfigurableElement ColorRow(UIPanelBuilder b, int k)
+        {
+            SettingField f = _fields[k];
+            return Field(b, f, b.HStack(row =>
+            {
+                string hex = SettingField.ColorHex((int)_values[k]);
+                RectTransform pick = null;
+                try { pick = Picker(row, hex, text => Guard("color", () => Colored(k, text, b))); }
+                catch (Exception e) { LogOnce("picker", _title + ": no color dropdown, so a hex box: " + PathClean.CleanText(e.Message)); }
+                if (pick != null) pick.Width(120f);
+                else row.AddInputField(hex, text => Guard("color", () => Colored(k, text, b)), null, 7).Width(72f);
+                row.Spacer(8f);
+                row.AddLabel(Dim("default " + SettingField.ColorHex((int)f.Default)));
+                if (!f.Live) { row.Spacer(6f); row.AddLabel(RestartTag); }
+            }));
+        }
+
+        // The dropdown in a method of its own, so a game without it fails at this call, inside the try above (Mono
+        // resolves a method when it compiles its caller, before the caller's own try runs), and gets the hex box.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static RectTransform Picker(UIPanelBuilder row, string hex, Action<string> onApply) => row.AddColorDropdown(hex, onApply);
+
+        // What the color dropdown hands back: a picked color as it is dragged, the box's text on Apply (anything the
+        // player typed), or null from its Default button. Text that isn't a color keeps the value, and the panel is
+        // redrawn so the swatch shows the kept color again; Default redraws too, as the dropdown then shows no swatch,
+        // and so does a color typed in any other form than #RRGGBB (" #abc "), so the swatch shows it as saved.
+        // A dragged color comes as #RRGGBB and never redraws.
+        private void Colored(int k, string text, UIPanelBuilder b)
+        {
+            SettingField f = _fields[k];
+            int rgb;
+            if (text == null) rgb = (int)f.Default;
+            else if (!SettingField.TryColor(text, out rgb))
+            {
+                Note("That isn't a color like #RRGGBB, so " + f.Label + " stays at " + SettingField.ColorHex((int)_values[k]) + ".");
+                Redraw(b);
+                return;
+            }
+            _values[k] = rgb;
+            _editNote = null;
+            Edited("");
+            if (text == null || text != SettingField.ColorHex(rgb)) Redraw(b);
+        }
+
+        // The buttons move to the next whole step (125 -> 150 -> 175), then stay inside min and max (or the field's
+        // Limits).
         private void Step(int k, int dir, TMP_InputField input)
         {
             SettingField f = _fields[k];
-            double cur = _values[k], n = cur / f.Step;
+            double cur = _held[k], n = cur / f.Step;
             double next = dir > 0 ? (Math.Floor(n + 1e-9) + 1) * f.Step : (Math.Ceiling(n - 1e-9) - 1) * f.Step;
-            Set(k, Clamp(f, next), input);
+            Range(k, _view, out double lo, out double hi);
+            Set(k, Math.Max(lo, Math.Min(hi, Round(f, next))), input);
             _editNote = null;
             Edited("");
         }
@@ -335,20 +837,29 @@ namespace PrettyConvenientMenu.UI.Preferences
         private void Typed(int k, string text, TMP_InputField input)
         {
             SettingField f = _fields[k];
-            double before = _values[k];
+            double before = _held[k];
             TypedNumber got = ParseTyped(text, f.Places, out double v);
             if (got != TypedNumber.Ok)
             {
-                Set(k, before, input);
+                Set(k, _values[k], input);   // unchanged; a held value is shown again by Edited
                 Note(got == TypedNumber.NotANumber
                     ? "That isn't a number, so " + f.Label + " stays at " + Format(f, before) + "."
                     : "Can't tell what " + Plain(text) + " means, so " + f.Label + " stays at " + Format(f, before) + ". Type it like "
-                      + (f.Places == 0 ? "1000 or 1,000." : "1000, 1,000 or 12.5."));
+                      + (f.Places == 0 ? "1 or 1000." : "1.5 or 1000."));
                 return;
             }
-            double r = Round(f, v), c = Math.Max(f.Min, Math.Min(f.Max, r));
+            double r = Round(f, v);
+            if (f.Linked && r == _held[k] && _values[k] != _held[k])
+            {
+                // The held number as shown, handed back when the box loses focus: no edit, so the number the player
+                // set still comes back if the range opens again.
+                if (input != null) input.SetTextWithoutNotify(Format(f, _held[k]));
+                return;
+            }
+            Range(k, _view, out double lo, out double hi);
+            double c = Math.Max(lo, Math.Min(hi, r));
             Set(k, c, input);
-            if (c != r) Note(f.Label + " goes from " + Format(f, f.Min) + " to " + Format(f, f.Max) + ", so it's " + Format(f, c) + ".");
+            if (c != r) Note(f.Label + " goes from " + Format(f, lo) + " to " + Format(f, hi) + ", so it's " + Format(f, c) + ".");
             else if (r != v && RoundingMatters(v, r)) Note(f.Label + " takes " + PlacesWord(f) + ", so " + Plain(v) + " is " + Format(f, c) + ".");
             else
             {
@@ -449,7 +960,178 @@ namespace PrettyConvenientMenu.UI.Preferences
             Edited(message);
         }
 
-        private void Edited(string message) => SetStatus(message);
+        private void Edited(string message)
+        {
+            Recompute();
+            ShowHeld();
+            SetStatus(message);
+        }
+
+        // Works out what the rows show from the values as set: the held values, which rows show, and the value labels.
+        // On load and after every edit, never per frame.
+        private void Recompute()
+        {
+            Settle(_values, _held, _shown, _view);
+            if (!_extras) return;
+            for (int i = 0; i < _fields.Length; i++)
+                if (_fields[i].ValueLabelOf != null) _labels[i] = LabelFor(i);
+        }
+
+        // Fills held from raw: each shown field with Limits held in its range, in field order from the held values so
+        // far, every other value as it is; shown gets which rows ShowWhen shows. Repeated until nothing moves. With no
+        // loop among the fields' Limits and ShowWhen that takes one pass per field at most, plus one that moves
+        // nothing. A loop may never settle: it stops after that many passes, leaving what the last pass left (a limit
+        // can be broken), and is logged once.
+        private void Settle(double[] raw, double[] held, bool[] shown, SettingValues view)
+        {
+            Array.Copy(raw, held, raw.Length);
+            if (!_extras) return;
+            for (int i = 0; i < shown.Length; i++) shown[i] = true;
+            for (int pass = 0; pass <= _fields.Length; pass++)
+            {
+                bool moved = false;
+                for (int i = 0; i < _fields.Length; i++)
+                {
+                    SettingField f = _fields[i];
+                    if (f.ShowIf != null)
+                    {
+                        bool show = Shows(f, view);
+                        if (show != shown[i]) { shown[i] = show; moved = true; }
+                    }
+                    double h = shown[i] && f.Linked ? HoldIn(i, raw[i], view) : raw[i];
+                    if (h != held[i]) { held[i] = h; moved = true; }
+                }
+                if (!moved) return;
+            }
+            LogOnce("settle", _title + ": its Limits and ShowWhen depend on each other in a loop that doesn't settle.");
+        }
+
+        // The range a field's value is held in now: Min to Max, narrowed by its Limits. A limit is kept inside Min to
+        // Max and rounded inward to the field's decimals (a whole-number field's max of 7.5 holds at 7). A lower limit
+        // above the upper one wins, as Min does over Max.
+        private void Range(int k, SettingValues view, out double lo, out double hi)
+        {
+            SettingField f = _fields[k];
+            lo = f.Min;
+            hi = f.Max;
+            if (!f.Linked) return;
+            double p = Math.Pow(10, f.Places);
+            if (f.MinOf != null && Limit(f, f.MinOf, view, out double m))
+                lo = Math.Max(f.Min, Math.Min(f.Max, Math.Ceiling(m * p - 1e-6) / p));
+            if (f.MaxOf != null && Limit(f, f.MaxOf, view, out double x))
+                hi = Math.Min(f.Max, Math.Max(f.Min, Math.Floor(x * p + 1e-6) / p));
+            if (lo > hi) hi = lo;
+        }
+
+        private double HoldIn(int k, double v, SettingValues view)
+        {
+            Range(k, view, out double lo, out double hi);
+            return Math.Max(lo, Math.Min(hi, Round(_fields[k], v)));
+        }
+
+        // A limit's value; false (logged once) when it throws or isn't a finite number, so that limit is left out.
+        private bool Limit(SettingField f, Func<SettingValues, double> limit, SettingValues view, out double v)
+        {
+            try { v = limit(view); }
+            catch (Exception e)
+            {
+                v = 0;
+                LogOnce("limit:" + f.Key, _title + ": a limit of " + f.Key + " failed: " + PathClean.CleanText(e.Message));
+                return false;
+            }
+            return !double.IsNaN(v) && !double.IsInfinity(v);
+        }
+
+        private bool Shows(SettingField f, SettingValues view)
+        {
+            try { return f.ShowIf(view); }
+            catch (Exception e)
+            {
+                LogOnce("show:" + (f.Key ?? f.Label), _title + ": ShowWhen of " + (f.Key ?? f.Label) + " failed: " + PathClean.CleanText(e.Message));
+                return true;
+            }
+        }
+
+        // A value label's text for the held values: no tags, one line.
+        private string LabelFor(int k)
+        {
+            SettingField f = _fields[k];
+            try { return Plain(f.ValueLabelOf(_held[k], _view)).Replace('\r', ' ').Replace('\n', ' '); }
+            catch (Exception e)
+            {
+                LogOnce("label:" + f.Key, _title + ": the value label of " + f.Key + " failed: " + PathClean.CleanText(e.Message));
+                return "";
+            }
+        }
+
+        // After an edit, in place on the last build: rows shown or hidden, number boxes and value labels set to the
+        // held values.
+        private void ShowHeld()
+        {
+            if (!_extras || _rows == null) return;
+            try
+            {
+                for (int i = 0; i < _fields.Length; i++)
+                {
+                    if (_rows[i] != null && _rows[i].gameObject.activeSelf != _shown[i]) _rows[i].gameObject.SetActive(_shown[i]);
+                    if (_inputs[i] != null)
+                    {
+                        string s = Format(_fields[i], _held[i]);
+                        if (_inputs[i].text != s) _inputs[i].SetTextWithoutNotify(s);
+                    }
+                    if (_valueTexts[i] != null) _valueTexts[i].text = _labels[i] ?? "";
+                }
+            }
+            catch (Exception e) { LogOnce("rows", _title + ": couldn't update the rows: " + PathClean.CleanText(e.Message)); }
+        }
+
+        // A held value differs from the file's (a number held at load), or is one Save can't write as it is
+        // (infinity): saving changes the file.
+        private bool HeldMoved()
+        {
+            for (int i = 0; i < _held.Length; i++) if (_held[i] != _saved[i] || Writable(_fields[i], _held[i]) != _held[i]) return true;
+            return false;
+        }
+
+        // settings.json as it is on disk now, read as the mod's own read gets it (ReadValues), each value held in its
+        // range, over the file's other keys. Unsaved edits are never in it, and it changes nothing here (no read
+        // state, no status). Null when settings.json can't be read. A value that makes the mod's own read fail means
+        // it starts on its defaults (the status line says so): then this is every field's default, held, and none of
+        // the file's other keys. A mod with Limits reads its settings from this at load (USE 5), so it runs the held
+        // values.
+        internal JObject Current()
+        {
+            try
+            {
+                JObject disk = ReadFile(out FileState state, out string problem);
+                if (state == FileState.Unreadable) return null;
+                int n = _fields.Length;
+                double[] raw = ReadValues(disk, out string odd, out bool oddChoice), held = new double[n];
+                bool defaults = odd != null && !oddChoice;   // a bad toggle or number: the mod's read fails
+                if (defaults) for (int i = 0; i < n; i++) raw[i] = _fields[i].Default;
+                Settle(raw, held, new bool[n], new SettingValues(_fields, held));
+                return WithValues(defaults ? new JObject() : disk ?? new JObject(), held);
+            }
+            catch (Exception e)
+            {
+                LogOnce("current", _title + ": couldn't read the settings: " + PathClean.CleanText(e.Message));
+                return null;
+            }
+        }
+
+        // Writes values into o, every field but a heading, each under its own key: the same key in other capitals goes,
+        // as the mod's own read would take it in place of this one.
+        private JObject WithValues(JObject o, double[] values)
+        {
+            foreach (JProperty p in new List<JProperty>(o.Properties()))
+            {
+                int i = Target(p.Name);
+                if (i >= 0 && p.Name != _fields[i].Key) p.Remove();
+            }
+            for (int i = 0; i < _fields.Length; i++)
+                if (_fields[i].Kind != SettingKind.Heading) o[_fields[i].Key] = Token(_fields[i], values[i]);
+            return o;
+        }
 
         private void SetStatus(string s)
         {
@@ -458,22 +1140,21 @@ namespace PrettyConvenientMenu.UI.Preferences
         }
 
         // True when a change about to be saved is to a field the mod reads only at load (or the mod may not be running
-        // what's
-        // saved, and some field is read only at load).
-        private bool ChangesNeedRestart(bool toDefaults)
+        // what's saved, and some field is read only at load). Held values on both sides: what will be saved, and what
+        // the mod runs from the file.
+        private bool ChangesNeedRestart()
         {
+            Recompute();
+            Settle(_saved, _check, _checkShown, _checkView);
             for (int i = 0; i < _fields.Length; i++)
-            {
-                double target = toDefaults ? _fields[i].Default : _values[i];
-                if (!_fields[i].Live && (target != _saved[i] || _behind != null)) return true;
-            }
+                if (!_fields[i].Live && (Writable(_fields[i], _held[i]) != _check[i] || _behind != null)) return true;
             return false;
         }
 
         private void BuildUnreadable(UIPanelBuilder b)
         {
             b.AddLabel("<color=#E8A33A>settings.json can't be read, so it's left alone: <noparse>" + PathClean.ForScreen(_problem ?? "unknown") + "</noparse></color>");
-            b.AddLabel(Footnote("Until it's fixed and saved here, or the game restarts, the mod keeps what it started with (its defaults, if the file was already like this). Fix or delete it, then press Check again."));
+            b.AddLabel(Footnote("Fix or delete it, then press Check again."));
             b.HStack(row =>
             {
                 row.AddButtonCompact(_showPath ? "Hide where it is" : "Show where it is", () => Guard("path", () => { _showPath = !_showPath; Redraw(b); }));
@@ -496,18 +1177,17 @@ namespace PrettyConvenientMenu.UI.Preferences
             _loaded = true;
             _stamp = stamp;
             JObject obj = ReadFile(out _state, out _problem);
-            string odd = null;
-            bool oddChoice = false;
+            double[] read = ReadValues(obj, out string odd, out _);
             bool moved = false;
             for (int i = 0; i < _fields.Length; i++)
             {
-                double v = ValueIn(obj, _fields[i], ref odd, ref oddChoice);
-                moved |= v != _saved[i];
-                _values[i] = _saved[i] = v;
+                moved |= read[i] != _saved[i];
+                _values[i] = _saved[i] = read[i];
             }
             if (!first && _state != FileState.Unreadable && (moved || _behind != null))
-                _behind = "settings.json changed outside the game; this shows it as it is now. The mod keeps what it had until you Save here or restart.";
+                _behind = "settings.json changed outside the game. Save or restart to use it.";
             if (odd != null) _behind = odd;
+            Recompute();   // a value outside its Limits is shown held; the file keeps it until a save
         }
 
         private string Stamp()
@@ -520,6 +1200,21 @@ namespace PrettyConvenientMenu.UI.Preferences
             catch (Exception e) { return "error:" + e.Message; }
         }
 
+        // The file's value after any comments before it, as JsonConvert reads it; null when there is only comment.
+        private static JToken AfterComments(string text)
+        {
+            using (var r = new JsonTextReader(new StringReader(text)))
+            {
+                bool any;
+                while ((any = r.Read()) && r.TokenType == JsonToken.Comment) { }
+                if (!any) return null;
+                JToken t = JToken.ReadFrom(r);
+                while (r.Read())
+                    if (r.TokenType != JsonToken.Comment) throw new FormatException("there is more after the { } object");
+                return t;
+            }
+        }
+
         private JObject ReadFile(out FileState state, out string problem)
         {
             problem = null;
@@ -528,7 +1223,10 @@ namespace PrettyConvenientMenu.UI.Preferences
                 if (!File.Exists(_path)) { state = FileState.Missing; return null; }
                 string text = File.ReadAllText(_path);
                 if (string.IsNullOrWhiteSpace(text)) { state = FileState.Read; return new JObject(); }   // the mods read an empty file as the defaults
-                if (JToken.Parse(text) is JObject o) { state = FileState.Read; return o; }
+                JToken parsed = JToken.Parse(text);
+                if (parsed.Type == JTokenType.Comment) parsed = AfterComments(text);   // the mod's read skips them
+                if (parsed == null) { state = FileState.Read; return new JObject(); }   // comments only: the defaults
+                if (parsed is JObject o) { state = FileState.Read; return o; }
                 state = FileState.Unreadable;
                 problem = "it isn't a { } object";
                 return null;
@@ -541,22 +1239,113 @@ namespace PrettyConvenientMenu.UI.Preferences
             }
         }
 
-        // Reads each value as the mod's own read (JsonConvert.DeserializeObject into its Settings class) would.
-        //   - A token that read can't convert (300.0 or 1e3 in a whole-number field, true in a number field, text that
-        //     isn't one) makes the mod start on ALL its defaults: the field shows its default and `odd` names the key.
-        //   - A choice is a text matching one of its options (trimmed, any case). Anything else shows the default, and
-        //     the mod uses the default for that setting alone.
-        //   - The status line names the first odd value, except that a bad toggle or number replaces a bad choice
-        //     (oddChoice), so it never understates what the mod is running.
-        private static double ValueIn(JObject obj, SettingField f, ref string odd, ref bool oddChoice)
+        // The mod's own read of the file, field by field, for the rows, the status line and Current() alike: values,
+        // and odd, the status line's text when a value isn't what the mod runs (oddChoice: only a choice or color fell
+        // back, on its own). JsonConvert meets every key in the file's order: a key goes to a field exactly, else
+        // ignoring case (Target); the last key a field gets is its value, and a value it can't take anywhere before
+        // that fails the whole read too. Null obj reads every default.
+        private double[] ReadValues(JObject obj, out string odd, out bool oddChoice)
         {
-            if (obj == null || !obj.TryGetValue(f.Key, out JToken t) || t.Type == JTokenType.Null) return f.Default;
+            odd = null;
+            oddChoice = false;
+            double[] v = new double[_fields.Length];
+            for (int i = 0; i < v.Length; i++) v[i] = _fields[i].Default;
+            if (obj == null) return v;
+            List<JProperty> keys = Walk(obj);
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (_fields[i].Kind == SettingKind.Heading) continue;
+                int last = -1;
+                for (int k = 0; k < keys.Count; k++) if (Target(keys[k].Name) == i) last = k;
+                for (int k = 0; k <= last; k++)
+                {
+                    if (Target(keys[k].Name) != i) continue;
+                    string name = keys[k].Name;
+                    int nth = 0;
+                    for (int e = 0; e < k; e++) if (keys[e].Name == name) nth++;
+                    Func<string> literal = () => Literal(name, nth);
+                    if (k == last) { v[i] = ValueIn(keys[k].Value, name, _fields[i], ref odd, ref oddChoice, literal); continue; }
+                    string failed = null;
+                    bool alone = false;
+                    ValueIn(keys[k].Value, name, _fields[i], ref failed, ref alone, literal);
+                    if (failed != null && !alone && (odd == null || oddChoice)) { odd = failed; oddChoice = false; }
+                }
+            }
+            return v;
+        }
+
+        // Every key of the file with its value, in the file's own order, as the mod's own read meets them (the parsed
+        // file keeps a repeated key once). The parsed file's keys when the text can't be walked.
+        private List<JProperty> Walk(JObject obj)
+        {
+            var keys = new List<JProperty>();
+            try
+            {
+                using (var r = new JsonTextReader(new StringReader(File.ReadAllText(_path))))
+                {
+                    while (r.Read() && r.TokenType == JsonToken.Comment) { }
+                    if (r.TokenType != JsonToken.StartObject) throw new FormatException("not an object");
+                    while (r.Read() && r.TokenType != JsonToken.EndObject)
+                    {
+                        if (r.TokenType != JsonToken.PropertyName) continue;   // a comment
+                        string name = (string)r.Value;
+                        do r.Read(); while (r.TokenType == JsonToken.Comment);
+                        keys.Add(new JProperty(name, JToken.ReadFrom(r)));
+                    }
+                }
+                return keys;
+            }
+            catch (Exception)
+            {
+                keys.Clear();
+                foreach (JProperty p in obj.Properties()) keys.Add(p);
+                return keys;
+            }
+        }
+
+        // The field a key in the file goes to, as JsonConvert matches it, or -1.
+        private int Target(string name)
+        {
+            int loose = -1;
+            for (int i = 0; i < _fields.Length; i++)
+            {
+                string key = _fields[i].Key;
+                if (key == null) continue;
+                if (key == name) return i;
+                if (loose < 0 && string.Equals(key, name, StringComparison.OrdinalIgnoreCase)) loose = i;
+            }
+            return loose;
+        }
+
+        // One value as the mod's own read (JsonConvert.DeserializeObject into its settings class: bool for a toggle,
+        // int, float, and string for a choice or a color) takes t, the value of key name (null: no such key).
+        // literal gives the text a string read takes from it (a number as written).
+        //   - A value that read can't convert makes it fail, and the mod starts on ALL its defaults: the field shows
+        //     its default and `odd` names the key (300.0 or 1e3 in a whole-number field, true in a number field, null
+        //     in a toggle or number, text that isn't one, an array or object anywhere).
+        //   - A toggle takes true or false, a number of any size (non-zero is on) or the text "true" or "false".
+        //   - A number field takes what a float does, text read through a double: 1e39 and "1e39" are infinity, shown
+        //     as it is (Limits hold it; Save writes the nearest of Min and Max). NaN, which that read also takes, is
+        //     counted odd here: it equals nothing, so no row could hold it.
+        //   - A choice is a text matching one of its options (trimmed, any case). Any other text, or a number, shows
+        //     the default, and the mod uses the default for that setting alone; null is no value.
+        //   - A color is text TryColor takes. A number there is read as written, as the mod's own string read takes
+        //     it (literal gives that text: 123456 and 000000 are colors). Anything else shows the default, and the mod
+        //     uses it for that one; null is no value.
+        //   - The status line names the first odd value, except that one failing the read replaces a choice or color
+        //     that fell back alone (oddChoice), so it never understates what the mod is running.
+        private static double ValueIn(JToken t, string name, SettingField f, ref string odd, ref bool oddChoice, Func<string> literal)
+        {
+            bool text = f.Kind == SettingKind.Choice || f.Kind == SettingKind.Color;   // read into a string: null is no value
+            if (t == null || f.Kind == SettingKind.Heading || t.Type == JTokenType.Null && text) return f.Default;
             try
             {
                 switch (f.Kind)
                 {
                     case SettingKind.Bool:
-                        if (t.Type == JTokenType.Boolean || t.Type == JTokenType.Integer || t.Type == JTokenType.String) return t.ToObject<bool>() ? 1 : 0;
+                        if (t.Type == JTokenType.Integer) return t.ToString(Formatting.None) != "0" ? 1 : 0;   // any size
+                        if (t.Type == JTokenType.Boolean || t.Type == JTokenType.Float || t.Type == JTokenType.String)
+                            return t.ToObject<bool>() ? 1 : 0;
                         break;
                     case SettingKind.Int:
                         if (t.Type == JTokenType.Integer || t.Type == JTokenType.String) return t.ToObject<int>();
@@ -568,29 +1357,61 @@ namespace PrettyConvenientMenu.UI.Preferences
                             if (i >= 0) return i;
                         }
                         break;
+                    case SettingKind.Color:
+                        string s = t.Type == JTokenType.String ? (string)t
+                                 : t.Type == JTokenType.Integer || t.Type == JTokenType.Float ? literal?.Invoke() : null;
+                        if (SettingField.TryColor(s, out int rgb)) return rgb;
+                        break;
                     default:
                         if (t.Type == JTokenType.Integer || t.Type == JTokenType.Float || t.Type == JTokenType.String)
                         {
-                            double v = t.ToObject<float>();
-                            if (!double.IsNaN(v) && !double.IsInfinity(v)) return Round(f, v);
+                            // text goes through a double, as the mod's float read does: "1e39" is infinity, not too big
+                            double v = t.Type != JTokenType.String ? t.ToObject<float>()
+                                     : double.TryParse((string)t, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture,
+                                                       out double d) ? (float)d : double.NaN;
+                            if (!double.IsNaN(v)) return Round(f, v);
                         }
                         break;
                 }
             }
             catch { }
-            if (odd == null || (oddChoice && f.Kind != SettingKind.Choice))
+            bool own = text && t.Type != JTokenType.Array && t.Type != JTokenType.Object;   // falls back for this setting alone
+            if (odd == null || (oddChoice && !own))
             {
-                oddChoice = f.Kind == SettingKind.Choice;
+                oddChoice = own;
                 string raw = t.ToString(Formatting.None);
                 if (raw.Length > 24) raw = raw.Substring(0, 24) + "...";
-                odd = f.Kind == SettingKind.Choice
-                    ? "settings.json has " + f.Key + " = " + Plain(raw) + ", which isn't one of " + Plain(string.Join(", ", f.Options))
-                      + ", so the mod uses the default for this setting (" + Plain(f.OptionAt(f.Default)) + "). Save puts the file right."
-                    : "settings.json has " + f.Key + " = " + Plain(raw) + ", which the mod can't read as "
-                      + (f.Kind == SettingKind.Bool ? "on or off (true or false)" : f.Kind == SettingKind.Int ? "a whole number" : "a number")
-                      + ", so with this file it starts on all its defaults. Save puts the file right.";
+                string what = f.Kind == SettingKind.Bool ? "on or off" : f.Kind == SettingKind.Int ? "a whole number"
+                            : f.Kind == SettingKind.Choice ? "one of " + Plain(string.Join(", ", f.Options))
+                            : f.Kind == SettingKind.Color ? "a color like #RRGGBB" : "a number";
+                string then = !own ? "starts on its defaults"
+                            : "uses " + (f.Kind == SettingKind.Choice ? Plain(f.OptionAt(f.Default)) : SettingField.ColorHex((int)f.Default));
+                odd = (name == f.Key ? f.Key : Plain(name)) + " = " + Plain(raw) + " in settings.json isn't " + what + ", so the mod " + then + ".";
             }
             return f.Default;
+        }
+
+        // The text the mod's own read takes from the nth value of key name (counting from 0, that spelling only), read
+        // again from the file: a number as written (000000, 1e3), which the parsed file has lost. Null when it can't
+        // be read.
+        private string Literal(string name, int nth)
+        {
+            try
+            {
+                using (var r = new JsonTextReader(new StringReader(File.ReadAllText(_path))))
+                {
+                    int n = 0;
+                    while (r.Read() && r.TokenType != JsonToken.StartObject) { }
+                    while (r.Read() && r.TokenType != JsonToken.EndObject)
+                    {
+                        if (r.TokenType != JsonToken.PropertyName) continue;   // a comment
+                        if ((string)r.Value == name && n++ == nth) return r.ReadAsString();
+                        r.Skip();
+                    }
+                    return null;
+                }
+            }
+            catch (Exception) { return null; }
         }
 
         private bool SaveFile(out string error, out bool applied)
@@ -607,8 +1428,12 @@ namespace PrettyConvenientMenu.UI.Preferences
                 error = "Not saved: settings.json can't be read, so it's left alone.";
                 return false;
             }
-            JObject o = disk ?? new JObject();
-            for (int i = 0; i < _fields.Length; i++) o[_fields[i].Key] = Token(_fields[i], _values[i]);
+            Recompute();
+            double[] w = new double[_held.Length];
+            for (int i = 0; i < w.Length; i++) w[i] = Writable(_fields[i], _held[i]);
+            JToken before = disk?.DeepClone();
+            JObject o = WithValues(disk ?? new JObject(), w);   // a value outside its Limits is saved held
+            _updated = before == null || !JToken.DeepEquals(before, o);
             string tmp = _path + ".tmp";
             try
             {
@@ -623,7 +1448,8 @@ namespace PrettyConvenientMenu.UI.Preferences
                 error = "Couldn't save: <noparse>" + PathClean.ForScreen(e.Message) + "</noparse>";
                 return false;
             }
-            Array.Copy(_values, _saved, _values.Length);
+            Array.Copy(w, _values, _values.Length);
+            Array.Copy(w, _saved, _values.Length);
             _state = FileState.Read;
             _stamp = Stamp();
             _loaded = true;
@@ -633,6 +1459,11 @@ namespace PrettyConvenientMenu.UI.Preferences
             return true;
         }
 
+        // What Save writes for a value: an infinite one (a float field's 1e39) as the nearer of Min and Max, NaN as the
+        // default, so the file never gets a number JSON has no form for. Every other value as it is.
+        private static double Writable(SettingField f, double v) =>
+            double.IsNaN(v) ? f.Default : double.IsInfinity(v) ? (v > 0 ? f.Max : f.Min) : v;
+
         private static JToken Token(SettingField f, double v)
         {
             switch (f.Kind)
@@ -640,6 +1471,7 @@ namespace PrettyConvenientMenu.UI.Preferences
                 case SettingKind.Bool: return new JValue(v != 0);
                 case SettingKind.Int: return new JValue((long)Round(f, v));
                 case SettingKind.Choice: return new JValue(f.OptionAt(v));
+                case SettingKind.Color: return new JValue(SettingField.ColorHex((int)v));
                 default: return new JValue(Round(f, v));
             }
         }
@@ -647,10 +1479,8 @@ namespace PrettyConvenientMenu.UI.Preferences
         // Half away from zero, the way people round (Math.Round alone rounds 2.5 to 2).
         private static double Round(SettingField f, double v) => Math.Round(v, f.Places, MidpointRounding.AwayFromZero);
 
-        private static double Clamp(SettingField f, double v) => Math.Max(f.Min, Math.Min(f.Max, Round(f, v)));
-
         private static string Format(SettingField f, double v) =>
-            f.Places == 0 ? ((long)Round(f, v)).ToString(CultureInfo.InvariantCulture)
+            double.IsInfinity(v) || double.IsNaN(v) ? Plain(v) : f.Places == 0 ? ((long)Round(f, v)).ToString(CultureInfo.InvariantCulture)
                           : Round(f, v).ToString("0." + new string('#', f.Places), CultureInfo.InvariantCulture);
 
         private static string Plain(double v) => v.ToString("0.##########", CultureInfo.InvariantCulture);
@@ -677,8 +1507,10 @@ namespace PrettyConvenientMenu.UI.Preferences
         {
             string range = f.Kind == SettingKind.Bool ? ""
                 : f.Kind == SettingKind.Choice ? " One of " + string.Join(", ", f.Options) + "; default " + f.OptionAt(f.Default) + "."
+                : f.Kind == SettingKind.Color ? " Default " + SettingField.ColorHex((int)f.Default) + "."
+                : f.Linked ? " Range follows other settings; default " + Format(f, f.Default) + "."
                 : " From " + Format(f, f.Min) + " to " + Format(f, f.Max) + ", default " + Format(f, f.Default) + ".";
-            return f.Help + range + (f.Live ? " Takes effect when you save." : " Takes effect after a restart.");
+            return f.Help + range + (f.Live ? "" : " Needs a restart.");
         }
 
         private const string RestartTag = "<alpha=#B0><i>after restart</i>";
@@ -699,13 +1531,19 @@ namespace PrettyConvenientMenu.UI.Preferences
 
     // One "Mods" tab in the game's Preferences window, shared by every mod that carries this file.
     //
-    // THE SHARED CONTRACT (frozen: every copy of this file, of any revision, keeps it exactly)
+    // THE SHARED CONTRACT (every copy of this file, of any revision, keeps it)
     //   - AppDomain.CurrentDomain.GetData("ashenmare.preferences-mods.v1") is a List<Action<UIPanelBuilder>>, one entry
-    //     per loaded mod, in load order.
-    //   - Each mod adds its entry when it loads and removes it when it unloads.
+    //     per loaded mod. Its key and type never change, and it is changed only under lock (list).
+    //   - Each mod adds its entry (at the end) when it loads and removes it when it unloads.
     //   - In the game's PreferencesBuilder.BuildTabs, only the mod whose entry is first adds the tab ("Mods", id
-    //     "ashenmare.mods"). The tab calls every entry in turn, each inside its own try.
-    //   - Nothing else crosses between mods.
+    //     "ashenmare.mods"). The tab calls every entry, each inside its own try; the order is the drawing copy's own.
+    //   - A copy may move its own entry to the front, only when its revision is higher than the revision of every
+    //     entry before it. Revisions are recorded in AppDomain data "ashenmare.preferences-mods.revisions.v1" (a
+    //     List<object[]>: entry, revision (int), load index (int), mod name (string or null)); an entry with no record
+    //     is revision 0 (Revisions 7 to 9 never write one). So the newest revision present draws the tab, and among
+    //     equals the first loaded. When the first entry goes, the copy removing it moves the highest remaining entry
+    //     (the first loaded among equals) to the front, so the tab passes on the same way.
+    //   - Nothing else crosses between mods but the revisions slot and the search slot (ModsSearch), BCL types only.
     internal static class PreferencesModsTab
     {
         private const string SlotKey = "ashenmare.preferences-mods.v1";
@@ -714,10 +1552,9 @@ namespace PrettyConvenientMenu.UI.Preferences
         private static bool _loggedPostfix, _loggedEntry;
 
         // Patches PreferencesBuilder.BuildTabs on your Harmony instance (its UnpatchAll undoes it) and adds draw to the
-        // shared
-        // list. Returns false, with one log line, when this game version has no such method. Safe to call again without
-        // an unload: the postfix goes on once (a second would add a second Mods tab) and the previous entry is
-        // replaced.
+        // shared list (moved to the front when this revision is newer than every entry before it). Returns false, with
+        // one log line, when this game version has no such method. Safe to call again without an unload: the postfix
+        // goes on once (a second would add a second Mods tab) and the previous entry is replaced.
         internal static bool Add(Harmony harmony, Action<UIPanelBuilder> draw, Action<string> log)
         {
             _log = log;
@@ -730,32 +1567,39 @@ namespace PrettyConvenientMenu.UI.Preferences
                 Remove();
                 _mine = draw;
                 List<Action<UIPanelBuilder>> list = Slot(true);
-                lock (list) list.Add(draw);
+                lock (list)
+                {
+                    list.Add(draw);
+                    ModsOrder.Join(list, draw, SettingsSection.Revision);
+                }
                 return true;
             }
             catch (Exception e) { Log("couldn't add the settings to Preferences > Mods: " + PathClean.CleanText(e.Message)); return false; }
         }
 
         // True when this copy's postfix is already on the method (this assembly's own MethodInfo, so another mod's copy
-        // never
-        // matches).
+        // never matches).
         private static bool Patched(MethodBase target, MethodInfo postfix)
         {
             HarmonyLib.Patches info = Harmony.GetPatchInfo(target);
             if (info == null) return false;
-            foreach (HarmonyLib.Patch p in info.Postfixes) if (p.PatchMethod == postfix) return true;
+            foreach (Patch p in info.Postfixes) if (p.PatchMethod == postfix) return true;
             return false;
         }
 
-        // Takes this mod's entry out (on unload, and on any path where the mod gives up after Add). The patch itself
-        // goes with
-        // the mod's own UnpatchAll.
+        // Takes this mod's entry out (on unload, and on any path where the mod gives up after Add), with its revision
+        // record. The patch itself goes with the mod's own UnpatchAll.
         internal static void Remove()
         {
             try
             {
                 List<Action<UIPanelBuilder>> list = Slot(false);
-                if (list != null && _mine != null) lock (list) list.Remove(_mine);
+                if (list != null && _mine != null)
+                    lock (list)
+                    {
+                        list.Remove(_mine);
+                        ModsOrder.Leave(list, _mine);
+                    }
             }
             catch { }
             _mine = null;
@@ -790,24 +1634,402 @@ namespace PrettyConvenientMenu.UI.Preferences
             {
                 s.ConfigureLayout(null, new RectOffset(0, 4, 0, 0));
                 s.AddLabel("<style=Footnote>Settings for the mods you have that offer them, saved in each mod's settings.json on this computer.</style>");
-                List<Action<UIPanelBuilder>> list = Slot(false);
-                Action<UIPanelBuilder>[] entries;
-                if (list == null) return;
-                lock (list) entries = list.ToArray();
-                foreach (Action<UIPanelBuilder> entry in entries)
-                {
-                    try { entry(s); }
-                    catch (Exception e)
-                    {
-                        if (!_loggedEntry) { _loggedEntry = true; Log("a mod's settings section failed to draw: " + PathClean.CleanText(e.Message)); }
-                    }
-                }
+                Body(s);
             });
+        }
+
+        // The tab's content after its note, drawn by its build closure, so every rebuild of the tab (in place or not)
+        // draws it again: the search box, then every entry A to Z by mod name (ModsOrder), each in its own try.
+        internal static void Body(UIPanelBuilder s)
+        {
+            List<Action<UIPanelBuilder>> list = Slot(false);
+            if (list == null) return;
+            Action<UIPanelBuilder>[] entries;
+            lock (list) entries = list.ToArray();
+            object first = entries.Length > 0 ? entries[0] : null;
+            string q = ModsSearch.Drawing(s, first);
+            List<object[]> records = ModsOrder.Records(false);
+            foreach (Action<UIPanelBuilder> entry in ModsOrder.Order(entries))
+            {
+                // under a search an older revision's mod can only be found by its name: it draws in full or not at all
+                if (q != null && ModsOrder.IsOlder(records, entry) && !ModsSearch.OlderShows(ModsOrder.Name(records, entry), q)) continue;
+                try { entry(s); }
+                catch (Exception e)
+                {
+                    if (!_loggedEntry) { _loggedEntry = true; Log("a mod's settings section failed to draw: " + PathClean.CleanText(e.Message)); }
+                }
+            }
         }
 
         private static void Log(string message)
         {
             try { _log?.Invoke(message); } catch { }
+        }
+    }
+
+    // The order of the Mods tab: who draws it (the newest revision present, through the revisions slot) and the order
+    // the drawing copy calls the entries in (A to Z by mod name, ties in load order). Everything that crosses is BCL.
+    internal static class ModsOrder
+    {
+        private const string RevisionsKey = "ashenmare.preferences-mods.revisions.v1";
+        private static string _title;   // the first section made since this copy's entry last went: the mod's name here
+        private static readonly Dictionary<object, string> _names = new Dictionary<object, string>();   // per entry
+
+        internal static void Made(string title) { if (_title == null) _title = title; }
+
+        // The revisions slot (made when create and absent); null when it holds something else.
+        internal static List<object[]> Records(bool create)
+        {
+            AppDomain d = AppDomain.CurrentDomain;
+            object o = d.GetData(RevisionsKey);
+            if (o == null && create) { o = new List<object[]>(); d.SetData(RevisionsKey, o); }
+            return o as List<object[]>;
+        }
+
+        private static object[] RecordOf(List<object[]> records, object entry)
+        {
+            if (records != null)
+                foreach (object[] r in records)
+                    if (r != null && r.Length >= 3 && ReferenceEquals(r[0], entry)) return r;
+            return null;
+        }
+
+        // An entry's revision: its record's, or 0 (no record, or one that isn't read as written here).
+        internal static int RevisionOf(List<object[]> records, object entry)
+        {
+            object[] r = RecordOf(records, entry);
+            return r != null && r[1] is int v ? v : 0;
+        }
+
+        // At Add, under lock (list), with draw just appended: records it, and moves it to the front when its revision
+        // is higher than that of every entry before it.
+        internal static void Join(List<Action<UIPanelBuilder>> list, Action<UIPanelBuilder> draw, int revision)
+        {
+            List<object[]> records = Records(true);
+            Action<UIPanelBuilder>[] all = list.ToArray();
+            int at = Array.IndexOf(all, draw);
+            if (records != null)
+            {
+                records.RemoveAll(r => r != null && r.Length >= 1 && ReferenceEquals(r[0], draw));
+                records.Add(new object[] { draw, revision, at, _title });
+            }
+            for (int i = 0; i < at; i++)
+                if (RevisionOf(records, all[i]) >= revision) return;   // an entry before it is as new or newer
+            if (at > 0) { list.Remove(draw); list.Insert(0, draw); }
+        }
+
+        // At Remove, under lock (list), with this entry just taken out: drops its record; and when it was first, so the
+        // tab now has no newest drawer, moves the highest remaining entry (the first loaded among equals) to the front.
+        internal static void Leave(List<Action<UIPanelBuilder>> list, Action<UIPanelBuilder> mine)
+        {
+            List<object[]> records = Records(false);
+            object[] gone = RecordOf(records, mine);
+            records?.RemoveAll(r => r != null && r.Length >= 1 && ReferenceEquals(r[0], mine));
+            _title = null;
+            if (gone == null || list.Count == 0) return;
+            Action<UIPanelBuilder>[] all = list.ToArray();
+            Action<UIPanelBuilder> best = all[0];
+            int bestRevision = RevisionOf(records, best), bestIndex = int.MaxValue;
+            foreach (Action<UIPanelBuilder> e in all)
+            {
+                int rev = RevisionOf(records, e);
+                object[] r = RecordOf(records, e);
+                int index = r != null && r[2] is int i ? i : int.MaxValue;
+                if (rev > bestRevision || rev == bestRevision && rev > 0 && index < bestIndex) { best = e; bestRevision = rev; bestIndex = index; }
+            }
+            if (!ReferenceEquals(best, all[0]) && bestRevision > RevisionOf(records, all[0])) { list.Remove(best); list.Insert(0, best); }
+        }
+
+        // The entries in the order the tab draws them: by mod name, any case (invariant culture), ties in load order.
+        internal static Action<UIPanelBuilder>[] Order(Action<UIPanelBuilder>[] entries)
+        {
+            List<object[]> records = Records(false);
+            // load order: the entries without a record keep their order, each recorded one goes back to its load index
+            // (a List<object>, so the only List<Action<UIPanelBuilder>> in this file is the shared one)
+            var load = new List<object>();
+            foreach (Action<UIPanelBuilder> e in entries) if (RecordOf(records, e) == null) load.Add(e);
+            var recorded = new List<KeyValuePair<int, object>>();
+            foreach (Action<UIPanelBuilder> e in entries)
+            {
+                object[] r = RecordOf(records, e);
+                if (r != null) recorded.Add(new KeyValuePair<int, object>(r[2] is int i ? i : int.MaxValue, e));
+            }
+            recorded.Sort((x, y) => x.Key.CompareTo(y.Key));
+            foreach (KeyValuePair<int, object> kv in recorded) load.Insert(Math.Max(0, Math.Min(kv.Key, load.Count)), kv.Value);
+            // names, kept per entry while it stays in the list
+            var keep = new HashSet<object>(entries);
+            foreach (object k in new List<object>(_names.Keys)) if (!keep.Contains(k)) _names.Remove(k);
+            var named = new List<KeyValuePair<string, Action<UIPanelBuilder>>>();
+            foreach (object o in load)
+            {
+                var e = (Action<UIPanelBuilder>)o;
+                named.Add(new KeyValuePair<string, Action<UIPanelBuilder>>(Name(records, e), e));
+            }
+            CompareInfo compare = CultureInfo.InvariantCulture.CompareInfo;
+            for (int i = 1; i < named.Count; i++)   // insertion sort: stable, so ties keep load order
+            {
+                KeyValuePair<string, Action<UIPanelBuilder>> x = named[i];
+                int j = i - 1;
+                while (j >= 0 && compare.Compare(named[j].Key, x.Key, CompareOptions.IgnoreCase) > 0) { named[j + 1] = named[j]; j--; }
+                named[j + 1] = x;
+            }
+            var order = new Action<UIPanelBuilder>[named.Count];
+            for (int i = 0; i < order.Length; i++) order[i] = named[i].Value;
+            return order;
+        }
+
+        // An entry with no record in the revisions slot is a Revision 7 to 9 mod's (they never write one). With no
+        // revisions slot to read (absent, or not ours), nothing can be told apart: no entry counts as older.
+        internal static bool IsOlder(List<object[]> records, object entry) => records != null && RecordOf(records, entry) == null;
+
+        // An entry's mod name, found once and kept while the entry stays in the list (Order drops the others).
+        internal static string Name(List<object[]> records, object entry)
+        {
+            if (_names.TryGetValue(entry, out string name)) return name;
+            name = NameOf(records, entry, out bool keep);
+            if (keep) _names[entry] = name;   // only a good read is kept: a failed read or an empty name is asked again
+            return name;
+        }
+
+        // An entry's mod name: the first section title its copy recorded; else the "name" in the Info.json of the mod's
+        // folder (the name the game shows, read from the file the game read); else its assembly's name; else "".
+        internal static string NameOf(List<object[]> records, object entry) => NameOf(records, entry, out _);
+
+        // keep: whether the answer may be remembered (a title, the Info.json name, or the assembly's name when no
+        // Info.json is there; not a fallback after a read that threw, and not an empty name).
+        private static string NameOf(List<object[]> records, object entry, out bool keep)
+        {
+            keep = true;
+            object[] r = RecordOf(records, entry);
+            if (r != null && r.Length >= 4 && r[3] is string title && title.Trim().Length > 0) return title.Trim();
+            Assembly assembly = null;
+            try { assembly = (entry as Delegate)?.Method.DeclaringType?.Assembly; } catch (Exception) { }
+            if (assembly == null) { keep = false; return ""; }
+            try
+            {
+                string dir = Path.GetDirectoryName(assembly.Location);
+                for (int up = 0; up < 3 && !string.IsNullOrEmpty(dir); up++, dir = Path.GetDirectoryName(dir))
+                {
+                    string info = Path.Combine(dir, "Info.json");
+                    if (!File.Exists(info)) continue;
+                    string name;
+                    try { name = (string)(JToken.Parse(File.ReadAllText(info)) as JObject)?.GetValue("name", StringComparison.OrdinalIgnoreCase); }
+                    catch (Exception) { keep = false; name = null; }   // the file is there but wasn't read: ask again next time
+                    if (!string.IsNullOrEmpty(name?.Trim())) return name.Trim();
+                    break;
+                }
+            }
+            catch (Exception) { }
+            string fallback;
+            try { fallback = assembly.GetName().Name ?? ""; } catch (Exception) { fallback = ""; }
+            if (fallback.Length == 0) keep = false;
+            return fallback;
+        }
+    }
+
+    // Search in the Mods tab (Revision 10): a box at the top finds mods by name and settings by label.
+    //   - AppDomain.CurrentDomain.GetData("ashenmare.preferences-mods.search.v1") is a Dictionary<string, object>, made
+    //     by the first copy that needs it: "version" (int, 1), "query" (string, trimmed; empty is no search), "owner"
+    //     (the first v1 entry when the drawing copy last drew the box; null while it draws), "drawing" (int, counts the
+    //     drawings of the tab), "sections" (a List<object> of Dictionary<string, object>: "name" (string), "shows"
+    //     (Func<string, bool>: whether a search for that text shows the section), "section" (object, the section
+    //     itself), "entry" (Func<object>: that copy's v1 entry now, null once removed) and "built" (int, the drawing it
+    //     last drew in)). Only BCL types cross. Anything else in the slot means no search; a key that is missing or of
+    //     another type is read as absent. A later version only adds keys.
+    //   - The copy that draws the tab draws the box in the tab's build closure, before every entry, so each rebuild of
+    //     the tab draws it again. A section filters only while the owner is the first v1 entry, which the drawing copy
+    //     sets after the box is drawn: under an older drawer, or one whose box failed, every section draws in full.
+    //   - Matching: the trimmed query, any case, anywhere in the mod's name, a row's label or a heading's text. A mod
+    //     whose name matches shows in full; else its matching rows (and the rows under a matching heading), under
+    //     their headings, with its buttons and status line; a mod with no matching row that ShowWhen shows draws
+    //     nothing. A matching row ShowWhen hides is drawn hidden. A row the search hides keeps its value: Save, Undo
+    //     and Reset act on every field.
+    //   - A mod of an older revision (an entry with no record in the revisions slot) can't be searched by its rows:
+    //     under a search the drawing copy draws it in full when its name matches (the same rule as a Revision 10 name)
+    //     and skips it otherwise. That is the drawing copy's own choice; nothing about it crosses. A line under the
+    //     box says so when one is installed.
+    //   - The box is the game's filter field, applied on Enter or on leaving it (its x clears): showing or hiding a
+    //     section rebuilds the panel (the game's section header can't be hidden in place), and a rebuild while typing
+    //     would take the field's focus away. The query stays until cleared.
+    //   - Each section records itself as it draws; a record not drawn in the tab's last drawing, or whose mod's v1
+    //     entry has gone, is dropped at the next drawing, so nothing builds up across reloads.
+    internal static class ModsSearch
+    {
+        private const string SlotKey = "ashenmare.preferences-mods.v1", SearchKey = "ashenmare.preferences-mods.search.v1";
+        internal static Action<UIPanelBuilder, string, int> DrawBox = Box;   // the box: builder, query, last drawing
+
+        // The search slot (made when create and absent); null when it holds something else.
+        internal static Dictionary<string, object> Slot(bool create)
+        {
+            AppDomain d = AppDomain.CurrentDomain;
+            object o = d.GetData(SearchKey);
+            if (o == null && create) { o = new Dictionary<string, object> { { "version", 1 }, { "query", "" } }; d.SetData(SearchKey, o); }
+            return o as Dictionary<string, object>;
+        }
+
+        private static T Get<T>(Dictionary<string, object> d, string key) where T : class =>
+            d.TryGetValue(key, out object v) ? v as T : null;
+
+        private static int Int(Dictionary<string, object> d, string key) => d.TryGetValue(key, out object v) && v is int i ? i : 0;
+
+        // The v1 entries, first to last. The v1 list is only read here.
+        private static object[] Entries()
+        {
+            var list = AppDomain.CurrentDomain.GetData(SlotKey) as List<Action<UIPanelBuilder>>;
+            if (list == null) return new object[0];
+            lock (list) return list.ToArray();
+        }
+
+        // This copy's v1 entry, read from PreferencesModsTab.
+        private static object Mine()
+        {
+            try { return typeof(PreferencesModsTab).GetField("_mine", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null); }
+            catch (Exception) { return null; }
+        }
+
+        // Whether an older mod's section draws under a query: its name matches, or it has none to match (never hidden).
+        internal static bool OlderShows(string name, string q) => string.IsNullOrEmpty(name) || Matches(name, q);
+
+        internal static bool Matches(string text, string q) => text != null && text.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        // The query sections filter by now; null when there is no search (none typed, or no box in this tab).
+        internal static string Query()
+        {
+            Dictionary<string, object> d = Slot(false);
+            if (d == null) return null;
+            object[] entries = Entries();
+            lock (d)
+            {
+                object owner = Get<object>(d, "owner");
+                if (owner == null || entries.Length == 0 || !ReferenceEquals(owner, entries[0])) return null;
+                string q = (Get<string>(d, "query") ?? "").Trim();
+                return q.Length > 0 ? q : null;
+            }
+        }
+
+        // Sets the query; true when it changed.
+        internal static bool SetQuery(string text)
+        {
+            Dictionary<string, object> d = Slot(true);
+            if (d == null) return false;
+            string q = (text ?? "").Trim();
+            lock (d)
+            {
+                if ((Get<string>(d, "query") ?? "") == q) return false;
+                d["query"] = q;
+                return true;
+            }
+        }
+
+        // The drawing copy, before the entries in each drawing of the tab: a new drawing, the box, then the owner.
+        // Returns the query this drawing filters by: null when there is none, or the box didn't draw.
+        internal static string Drawing(UIPanelBuilder s, object first)
+        {
+            Dictionary<string, object> d = Slot(true);
+            if (d == null) return null;
+            string q;
+            int last;
+            lock (d)
+            {
+                last = Int(d, "drawing");
+                d["drawing"] = last + 1;
+                d["owner"] = null;   // no filtering unless the box is drawn
+                if (!(Get<object>(d, "version") is int)) d["version"] = 1;
+                q = (Get<string>(d, "query") ?? "").Trim();
+            }
+            Records(last, out _);   // drops records not drawn last time, or whose mod has gone
+            try { DrawBox(s, q, last); }
+            catch (Exception) { return null; }
+            lock (d) d["owner"] = first;
+            return q.Length > 0 && first != null ? q : null;
+        }
+
+        // A section records itself as it draws (its earlier record, by the section itself, is replaced) and gets the
+        // query. A "sections" that isn't a List<object> is left alone, and nothing is recorded.
+        internal static string Begin(object section, string name, Func<string, bool> shows)
+        {
+            Dictionary<string, object> d = Slot(true);
+            if (d == null || section == null) return Query();
+            lock (d)
+            {
+                List<object> list = null;
+                if (!d.TryGetValue("sections", out object o) || o == null) { list = new List<object>(); d["sections"] = list; }
+                else list = o as List<object>;
+                if (list != null)
+                {
+                    list.RemoveAll(x => x is Dictionary<string, object> r && ReferenceEquals(Get<object>(r, "section"), section));
+                    list.Add(new Dictionary<string, object> { { "name", name }, { "shows", shows }, { "section", section },
+                                                              { "entry", (Func<object>)Mine }, { "built", Int(d, "drawing") } });
+                }
+            }
+            return Query();
+        }
+
+        // The records counted for the lines under the box: drawn in the tab's drawing since or later (all, when since
+        // is negative), with their mod's v1 entry still there. The others are dropped. older: a v1 entry of an older
+        // revision is installed (ModsOrder.IsOlder); olderShows: one of them has a name that q matches (q null: none).
+        internal static List<KeyValuePair<string, Func<string, bool>>> Records(int since, out bool older) => Scan(since, out older, null, out _);
+
+        internal static List<KeyValuePair<string, Func<string, bool>>> Scan(int since, out bool older, string q, out bool olderShows)
+        {
+            var found = new List<KeyValuePair<string, Func<string, bool>>>();
+            object[] entries = Entries();
+            Dictionary<string, object> d = Slot(false);
+            if (d != null)
+                lock (d)
+                {
+                    List<object> list = Get<List<object>>(d, "sections");
+                    if (list != null)
+                        list.RemoveAll(o =>
+                        {
+                            if (!(o is Dictionary<string, object> r)) return false;   // not ours to judge: left alone
+                            object entry = null;
+                            try { entry = Get<Func<object>>(r, "entry")?.Invoke(); } catch (Exception) { }
+                            if (entry == null || Array.IndexOf(entries, entry) < 0) return true;   // its mod has gone
+                            if (since >= 0 && !(r.TryGetValue("built", out object b) && b is int built && built >= since)) return true;   // not in the tab
+                            string name = Get<string>(r, "name");
+                            Func<string, bool> shows = Get<Func<string, bool>>(r, "shows");
+                            if (name != null && shows != null) found.Add(new KeyValuePair<string, Func<string, bool>>(name, shows));
+                            return false;
+                        });
+                }
+            older = false; olderShows = false;
+            List<object[]> records = ModsOrder.Records(false);
+            foreach (object e in entries)
+                if (ModsOrder.IsOlder(records, e))
+                {
+                    older = true;
+                    if (q != null && OlderShows(ModsOrder.Name(records, e), q)) olderShows = true;
+                }
+            return found;
+        }
+
+        // What the lines under the box say for a query: nothing shows (no section and no older mod's name matches), and
+        // whether an older mod is installed.
+        internal static void Notes(string q, int since, out bool nothing, out bool older)
+        {
+            nothing = true;
+            List<KeyValuePair<string, Func<string, bool>>> found = Scan(since, out older, q, out bool olderShows);
+            foreach (KeyValuePair<string, Func<string, bool>> r in found)
+            {
+                bool shows = false;
+                try { shows = r.Value(q); } catch (Exception) { }
+                if (shows) nothing = false;
+            }
+            if (olderShows) nothing = false;
+        }
+
+        // The box: the game's filter field (Enter or leaving it applies the query; its x clears), and the lines.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static void Box(UIPanelBuilder s, string q, int last)
+        {
+            UIPanelBuilder tab = s;
+            Action redraw = () => { try { tab.SetNeedsRebuild(); } catch (Exception) { try { tab.Rebuild(); } catch (Exception) { } } };
+            s.AddFilterField(q, text => { if (SetQuery(text)) redraw(); }, "Search, Enter to apply", false);
+            if (q.Length == 0) return;
+            Notes(q, last, out bool nothing, out bool older);
+            if (nothing) s.AddLabel("<style=Footnote>Nothing here matches.</style>");
+            if (older) s.AddLabel("<style=Footnote>Older settings menus match by mod name only.</style>");
         }
     }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+- Added track-span hover highlighting: hovering a spur header in **Rolling Stock** or a storage buffer header in **Storage Buffers** / **Locomotive Supplies & Reserves** / **Track Maintenance Material Reserves** highlights the corresponding track(s) in the 3D world (#10).
+- Updated `railroader-mod-settings` (`SettingsSection.cs`) to Revision 10, adding search/filtering and alphabetical sorting in the shared **Preferences -> Mods** tab along with improved label wrapping and UI refinements.
+
 ## 0.4.0
 - Added single-window mode and window pinning support, with a mod preference to keep a single facility monitor open and pin specific windows (#8).
 - Added integration with Ashenmare's MoW Producer Priority mod, displaying dedicated MoW reserve buffers, refill progress, and status alerts at commercial producers.

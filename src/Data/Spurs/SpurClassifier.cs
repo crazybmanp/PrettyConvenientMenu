@@ -3,6 +3,7 @@ using Model;
 using Model.Ops;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.RollingStock;
+using Track;
 
 namespace PrettyConvenientMenu.Data.Spurs
 {
@@ -118,12 +119,34 @@ namespace PrettyConvenientMenu.Data.Spurs
             // Match spur to multi-landing swatch if applicable
             spurGroup.SwatchHex = snapshot.Buffers.FindSwatch(componentsOnSpur);
 
+            // Collect unique valid track span IDs so hovering the spur header highlights the track in the world
+            foreach (IndustryComponent component in componentsOnSpur)
+            {
+                CollectValidSpanIds(component, spurGroup.TrackSpanIds);
+            }
+
             IEnumerable<Car>? carsOnTrack = opsController.CarsAtPosition(componentsOnSpur[0]);
             if (carsOnTrack == null) return;
 
             SpottedCarClassifier.ClassifySpurCars(
                 spurGroup, componentsOnSpur, carsOnTrack,
                 industry, snapshot, opsController, caps, role);
+        }
+
+        /// <summary>
+        /// Appends unique, valid, non-zero-length track span IDs from <paramref name="component"/> into <paramref name="destination"/>.
+        /// </summary>
+        internal static void CollectValidSpanIds(IndustryComponent? component, List<string> destination)
+        {
+            if (component?.TrackSpans == null) return;
+
+            foreach (TrackSpan? span in component.TrackSpans)
+            {
+                if (span != null && !string.IsNullOrEmpty(span.id) && span.IsValid && span.Length > 0f && !destination.Contains(span.id))
+                {
+                    destination.Add(span.id);
+                }
+            }
         }
     }
 }

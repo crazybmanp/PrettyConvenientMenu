@@ -82,11 +82,16 @@ namespace PrettyConvenientMenu.UI.Sections
             string spurTitle = group.IsEnRoute
                 ? $"{swatchPrefix}<color={headerColor}><b>Arriving: {group.TrackName}</b></color>  ({direction})"
                 : $"{swatchPrefix}<color={headerColor}><b>Spur: {group.TrackName}</b></color>  ({direction})";
-            scrollBuilder.AddLabel(spurTitle, t =>
+            RectTransform labelRect = scrollBuilder.AddLabel(spurTitle, t =>
             {
                 t.textWrappingMode = TextWrappingModes.NoWrap;
                 t.overflowMode = TextOverflowModes.Ellipsis;
             });
+
+            if (!group.IsEnRoute)
+            {
+                TrackHoverHelper.Attach(labelRect, group.TrackSpanIds);
+            }
             scrollBuilder.Spacer(SpurTitleBottomSpacing);
 
             if (group.Cars.Count == 0)

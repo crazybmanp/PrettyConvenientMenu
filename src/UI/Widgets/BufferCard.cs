@@ -47,7 +47,8 @@ namespace PrettyConvenientMenu.UI.Widgets
                 (BufferCardMode.EngineSupply, _) => $"{StatusBadges.GetSupplyRoleBadge()} ",
                 _ => string.Empty
             };
-            builder.AddLabel($"{badge}<b>{buf.CargoDisplayName}</b>:  {currentText} / {maxText}  ({pctText})");
+            RectTransform headerRect = builder.AddLabel($"{badge}<b>{buf.CargoDisplayName}</b>:  {currentText} / {maxText}  ({pctText})");
+            TrackHoverHelper.Attach(headerRect, buf.TrackSpanIds);
 
             // 2. Available Amount Line (for Supply & Reserve modes or maintenance reserves)
             if (mode == BufferCardMode.EngineSupply || mode == BufferCardMode.MowReserve || buf.Role == BufferRole.MaintenanceReserve)

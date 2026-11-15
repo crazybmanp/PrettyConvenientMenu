@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Model.Definition.Data;
 using UnityEngine;
 
@@ -21,6 +22,21 @@ namespace PrettyConvenientMenu.Data.Buffers
         // Color Swatch for Multi-Landing Buffers
         public Color? SwatchColor { get; set; }
         public string? SwatchHex { get; set; }
+
+        // Track span IDs associated with this buffer's loading/unloading components
+        public List<string> TrackSpanIds { get; } = new List<string>(4);
+
+        internal void AddTrackSpanIds(IReadOnlyList<string> spanIds)
+        {
+            for (int i = 0; i < spanIds.Count; i++)
+            {
+                string id = spanIds[i];
+                if (!TrackSpanIds.Contains(id))
+                {
+                    TrackSpanIds.Add(id);
+                }
+            }
+        }
 
         // 2x2 Transfer Model (Active vs Scheduled)
         public virtual float ActiveInbound { get; set; }

@@ -11,6 +11,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
         public string TrackName { get; set; } = string.Empty;
         public CarGroupRole Role { get; set; } = CarGroupRole.CommercialInbound;
         public string? SwatchHex { get; set; }
+        public List<string> TrackSpanIds { get; } = new List<string>(4);
         public List<SpottedCarInfo> Cars { get; } = new List<SpottedCarInfo>(8);
 
         public bool IsEnRoute => Role is CarGroupRole.EnRouteWaybill or CarGroupRole.EnRouteRepair;
@@ -21,6 +22,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
             TrackName = string.Empty;
             Role = CarGroupRole.CommercialInbound;
             SwatchHex = null;
+            TrackSpanIds.Clear();
             Cars.Clear();
         }
     }

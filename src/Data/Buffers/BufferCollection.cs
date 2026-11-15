@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Model.Ops;
 using Model.Ops.Definition;
+using PrettyConvenientMenu.Data.Spurs;
 
 namespace PrettyConvenientMenu.Data.Buffers
 {
@@ -243,6 +244,84 @@ namespace PrettyConvenientMenu.Data.Buffers
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// Associates each industry component's track span IDs with its matching buffer(s)
+        /// (and any parent composite buffer) for UI hover highlighting.
+        /// </summary>
+        public void AttachTrackSpans(IEnumerable<IndustryComponent>? components)
+        {
+            if (components == null || _buffers.Count == 0) return;
+
+            List<string> spanIds = new List<string>(4);
+            foreach (IndustryComponent component in components)
+            {
+                spanIds.Clear();
+                SpurClassifier.CollectValidSpanIds(component, spanIds);
+
+                if (spanIds.Count == 0) continue;
+
+                switch (component)
+                {
+                    case StorageUnloader storageUnloader:
+                        foreach (StorageUnloader.LoadEntry entry in storageUnloader.loads)
+                        {
+                            if (entry.load != null) AttachSpansForComponent(component, entry.load, spanIds);
+                        }
+                        break;
+                    case StorageLoader storageLoader:
+                        foreach (StorageLoader.LoadEntry entry in storageLoader.loads)
+                        {
+                            if (entry.load != null) AttachSpansForComponent(component, entry.load, spanIds);
+                        }
+                        break;
+                    case FormulaicIndustryComponent formulaic:
+                        foreach (FormulaicIndustryComponent.Term term in formulaic.inputTerms)
+                        {
+                            if (term.load != null) AttachSpansForComponent(component, term.load, spanIds);
+                        }
+                        foreach (FormulaicIndustryComponent.Term term in formulaic.outputTerms)
+                        {
+                            if (term.load != null) AttachSpansForComponent(component, term.load, spanIds);
+                        }
+                        break;
+                    default:
+                        AttachSpansForComponent(component, null, spanIds);
+                        break;
+                }
+            }
+
+            // Propagate sub-buffer spans up to their parent composite buffer
+            foreach (BufferInfo buf in _buffers)
+            {
+                if (buf is ICompositeBuffer composite)
+                {
+                    foreach (BufferInfo sub in composite.SubBuffers)
+                    {
+                        if (sub.TrackSpanIds.Count > 0)
+                        {
+                            buf.AddTrackSpanIds(sub.TrackSpanIds);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void AttachSpansForComponent(IndustryComponent component, Load? overrideLoad, IReadOnlyList<string> spanIds)
+        {
+            BufferInfo? matched = FindMatching(component, overrideLoad);
+            if (matched == null && component is IndustryUnloader unloader)
+            {
+                Load? load = overrideLoad ?? unloader.load;
+                if (load != null)
+                {
+                    string? prefix = !unloader.sharedStorage ? unloader.subIdentifier : null;
+                    matched = FindMatching(load, true, prefix, null);
+                }
+            }
+
+            matched?.AddTrackSpanIds(spanIds);
         }
 
         /// <summary>

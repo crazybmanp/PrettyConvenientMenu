@@ -73,6 +73,7 @@ namespace PrettyConvenientMenu.Data
             snapshot.Reset(industry, collector.FacilityType);
             collector.PopulateFacilityMetadata(industry, snapshot);
             collector.PopulateBuffers(industry, snapshot);
+            snapshot.Buffers.AttachTrackSpans(industry.Components);
             SpurClassifier.ClassifyAllSpurs(industry, snapshot, OpsController.Shared);
             EnRouteCarClassifier.ClassifyEnRouteCars(industry, snapshot, OpsController.Shared);
             collector.EvaluateFacilityDiagnostics(industry, snapshot);

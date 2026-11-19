@@ -170,7 +170,9 @@ namespace PrettyConvenientMenu.Data.Buffers
                 case IndustryUnloader unloader:
                     load ??= unloader.load;
                     isUnload = true;
-                    targetRole = BufferRole.CommercialInput;
+                    // IndustryUnloader serves CommercialInput, EngineSupply, and MaintenanceReserve buffers;
+                    // commercial input/output disambiguation is already enforced via (comm.IsInput == isUnload).
+                    targetRole = null;
                     break;
                 case StorageUnloader:
                     isUnload = true;

@@ -9,13 +9,18 @@ namespace PrettyConvenientMenu.UI.Sections
         {
             if (snapshot.DiagnosticAlerts.Count > 0)
             {
-                builder.AddSection("Advisory Notice", b =>
+                builder.AddSection("Advisories", b =>
                 {
                     for (int i = 0; i < snapshot.DiagnosticAlerts.Count; i++)
                     {
                         FacilityAdvisory alert = snapshot.DiagnosticAlerts[i];
-                        string color = alert.OverrideColor ?? "#EF5350";
-                        b.AddLabel($"<color={color}><b>Notice:</b> {alert.Message}</color>");
+                        (string tag, string color) = alert.Level switch
+                        {
+                            AdvisoryLevel.Hold => ("Hold", "#EF5350"),
+                            AdvisoryLevel.Caution => ("Caution", "#FFD54F"),
+                            _ => ("Notice", "#90CAF9")
+                        };
+                        b.AddLabel($"<color={color}><b>{tag}:</b> {alert.Message}</color>");
                     }
                 });
             }

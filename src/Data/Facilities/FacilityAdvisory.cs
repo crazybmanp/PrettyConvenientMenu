@@ -1,18 +1,27 @@
 namespace PrettyConvenientMenu.Data.Facilities
 {
     /// <summary>
+    /// Operational severity level for facility advisories, following railroad dispatching terminology.
+    /// </summary>
+    public enum AdvisoryLevel
+    {
+        Hold,
+        Caution,
+        Notice
+    }
+
+    /// <summary>
     /// Represents an operational notice or advisory displayed in the facility monitor window.
-    /// Stores the notification message and an optional override color (e.g. amber for warnings).
     /// </summary>
     public readonly struct FacilityAdvisory
     {
         public string Message { get; }
-        public string? OverrideColor { get; }
+        public AdvisoryLevel Level { get; }
 
-        public FacilityAdvisory(string message, string? overrideColor = null)
+        public FacilityAdvisory(string message, AdvisoryLevel level = AdvisoryLevel.Notice)
         {
             Message = message;
-            OverrideColor = overrideColor;
+            Level = level;
         }
     }
 }

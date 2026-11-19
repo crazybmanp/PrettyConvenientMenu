@@ -58,6 +58,21 @@ namespace PrettyConvenientMenu.Data.Collectors
         {
             // Engine terminals are servicing depots with optional supplies (e.g. diesel, coal, sand, repair parts).
             // Empty reserves are normal operational state (e.g. running an all-steam roster) and do not halt operations.
+            for (int i = 0; i < snapshot.Buffers.Count; i++)
+            {
+                if (snapshot.Buffers[i] is ReserveBuffer reserve && reserve.IsRepairParts)
+                {
+                    float totalStock = reserve.CurrentAmount + reserve.ActiveInbound + reserve.ScheduledInbound;
+                    if (totalStock < reserve.ProgramDemand - 0.001f)
+                    {
+                        snapshot.AddAlert("Insufficient repair parts for program demand.", AdvisoryLevel.Hold);
+                    }
+                    else if (totalStock - reserve.ProgramDemand < reserve.SpotDemand - 0.001f)
+                    {
+                        snapshot.AddAlert("Spot repairs may consume repair parts needed for program demand.", AdvisoryLevel.Caution);
+                    }
+                }
+            }
         }
     }
 }

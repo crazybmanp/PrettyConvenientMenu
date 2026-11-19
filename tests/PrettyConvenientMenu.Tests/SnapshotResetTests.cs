@@ -23,7 +23,7 @@ namespace PrettyConvenientMenu.Tests
                 State = ProductionState.Running,
                 StatusMessage = "Running"
             };
-            snapshot.AddAlert("Alert", "#FFD54F");
+            snapshot.AddAlert("Alert", AdvisoryLevel.Notice);
 
             snapshot.Buffers.Add(new CommercialBuffer());
 

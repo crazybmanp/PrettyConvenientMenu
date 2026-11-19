@@ -161,11 +161,9 @@ namespace PrettyConvenientMenu.UI.Widgets
                 }
             }
 
-            // 5b. Repair Parts Demand & Advisory Rows
+            // 5b. Repair Parts Demand Rows
             if (buf is ReserveBuffer reserve && reserve.IsRepairParts)
             {
-                float currentStock = reserve.CurrentAmount + reserve.ActiveInbound;
-                float totalStock = currentStock + reserve.ScheduledInbound;
 
                 // Row 1: Program (Orange, left) and Unloading (Green, right)
                 builder.HStack(row =>
@@ -198,24 +196,6 @@ namespace PrettyConvenientMenu.UI.Widgets
                         t.textWrappingMode = TextWrappingModes.NoWrap;
                     }).FlexibleWidth(1f);
                 });
-
-                // Advisory Row
-                // Mode 1: Insufficient parts for program demand
-                if (totalStock < reserve.ProgramDemand - 0.001f)
-                {
-                    builder.AddLabel("<size=12><color=#FFD54F><b>[ADVISORY]</b> Insufficient parts for program demand.</color></size>", t =>
-                    {
-                        t.textWrappingMode = TextWrappingModes.Normal;
-                    });
-                }
-                // Mode 2: Spot repairs may consume program demand
-                else if (totalStock - reserve.ProgramDemand < reserve.SpotDemand - 0.001f)
-                {
-                    builder.AddLabel("<size=12><color=#FFD54F><b>[ADVISORY]</b> Spot repairs may consume program demand.</color></size>", t =>
-                    {
-                        t.textWrappingMode = TextWrappingModes.Normal;
-                    });
-                }
             }
 
             // 6. Commercial Footer Row (Rate / Runway Duration)

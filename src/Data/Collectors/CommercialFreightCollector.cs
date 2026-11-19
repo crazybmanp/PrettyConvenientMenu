@@ -138,17 +138,15 @@ namespace PrettyConvenientMenu.Data.Collectors
             {
                 snapshot.State = ProductionState.Idle;
                 snapshot.StatusMessage = "No active contract tier set.";
-                snapshot.AddAlert("Establish a contract in the company window to begin operations.");
+                snapshot.AddAlert("Establish a contract in the company window to begin operations.", AdvisoryLevel.Hold);
                 return;
             }
 
             int totalInputCount = 0;
-            int starvedInputCount = 0;
-            string starvedInputCargo = string.Empty;
+            List<string> starvedInputCargos = new List<string>(2);
 
             int totalOutputCount = 0;
-            int blockedOutputCount = 0;
-            string blockedOutputCargo = string.Empty;
+            List<string> blockedOutputCargos = new List<string>(2);
 
             for (int i = 0; i < snapshot.Buffers.Count; i++)
             {
@@ -159,49 +157,55 @@ namespace PrettyConvenientMenu.Data.Collectors
                         totalInputCount++;
                         if (cb.CurrentAmount <= 0.001f && cb.DailyRate > 0.001f)
                         {
-                            starvedInputCount++;
-                            starvedInputCargo = cb.CargoDisplayName;
+                            starvedInputCargos.Add(cb.CargoDisplayName);
                         }
                     }
                     else
                     {
                         totalOutputCount++;
                         float remaining = Math.Max(0f, cb.MaxCapacity - cb.CurrentAmount);
-                        if (remaining <= 0.001f && cb.DailyRate > 0.001f)
+                        if (remaining <= 0.001f && cb.DailyRate > 0.001f &&
+                            !IsOutputDivertedToMowReserve(industry, snapshot.Buffers, cb.CargoType))
                         {
-                            blockedOutputCount++;
-                            blockedOutputCargo = cb.CargoDisplayName;
+                            blockedOutputCargos.Add(cb.CargoDisplayName);
                         }
                     }
                 }
             }
 
-            if (starvedInputCount > 0 && starvedInputCount == totalInputCount)
+            if (starvedInputCargos.Count > 0 && starvedInputCargos.Count == totalInputCount)
             {
+                string cargos = string.Join(", ", starvedInputCargos);
                 snapshot.State = ProductionState.Starved;
                 snapshot.StatusMessage = "Raw input material depleted.";
-                snapshot.AddAlert($"Input buffer depleted: {starvedInputCargo}. Spot loaded cars on inbound spurs to resume production.");
+                snapshot.AddAlert($"Input buffer depleted: {cargos}. Spot loaded cars on inbound spurs to resume production.", AdvisoryLevel.Hold);
             }
-            else if (blockedOutputCount > 0 && blockedOutputCount == totalOutputCount)
+            else if (blockedOutputCargos.Count > 0 && blockedOutputCargos.Count == totalOutputCount)
             {
+                string cargos = string.Join(", ", blockedOutputCargos);
                 snapshot.State = ProductionState.Blocked;
                 snapshot.StatusMessage = "All output buffers full.";
-                snapshot.AddAlert("Output buffer is full. Spot empty cars on outbound spurs to resume production.");
+                snapshot.AddAlert($"{cargos} output buffer is full. Spot empty cars on outbound spurs to resume production.", AdvisoryLevel.Hold);
             }
             else
             {
                 snapshot.State = ProductionState.Running;
-                if (blockedOutputCount > 0)
+                if (blockedOutputCargos.Count > 0)
                 {
-                    snapshot.StatusMessage = $"Producing normally ({blockedOutputCargo} buffer full).";
-                    snapshot.AddAlert($"{blockedOutputCargo} output buffer is full. Spot empty cars on outbound spurs.", "#FFD54F");
+                    string cargos = string.Join(", ", blockedOutputCargos);
+                    snapshot.StatusMessage = $"Producing normally ({cargos} buffer full).";
+                    snapshot.AddAlert($"{cargos} output buffer is full. Spot empty cars on outbound spurs.", AdvisoryLevel.Caution);
                 }
-                else if (starvedInputCount > 0)
+                if (starvedInputCargos.Count > 0)
                 {
-                    snapshot.StatusMessage = $"Producing normally ({starvedInputCargo} input depleted).";
-                    snapshot.AddAlert($"{starvedInputCargo} input depleted. Spot loaded cars on inbound spurs.", "#FFD54F");
+                    string cargos = string.Join(", ", starvedInputCargos);
+                    if (blockedOutputCargos.Count == 0)
+                    {
+                        snapshot.StatusMessage = $"Producing normally ({cargos} input depleted).";
+                    }
+                    snapshot.AddAlert($"{cargos} input depleted. Spot loaded cars on inbound spurs.", AdvisoryLevel.Caution);
                 }
-                else
+                if (blockedOutputCargos.Count == 0 && starvedInputCargos.Count == 0)
                 {
                     float contractMultiplier = industry.GetContractMultiplier();
                     snapshot.StatusMessage = $"Producing normally at {contractMultiplier * 100f:F0}% throughput.";
@@ -216,10 +220,27 @@ namespace PrettyConvenientMenu.Data.Collectors
                     if (MowProducerPriorityAdapter.TryGetReserveInfo(industry.identifier, rb.CargoType, null, out MowReserveInfo rInfo) && rInfo.IsRefilling)
                     {
                         float needed = Math.Max(0f, rInfo.Cap - rInfo.Stock);
-                        snapshot.AddAlert($"{rb.CargoDisplayName} production prioritized to MoW reserve ({FormatHelper.FormatQuantity(needed, rb.Units)} needed before outbound shipping resumes).", "#FFD54F");
+                        snapshot.AddAlert($"{rb.CargoDisplayName} production prioritized to MoW reserve ({FormatHelper.FormatQuantity(needed, rb.Units)} needed before outbound shipping resumes).", AdvisoryLevel.Notice);
                     }
                 }
             }
+        }
+
+        private static bool IsOutputDivertedToMowReserve(Industry industry, BufferCollection buffers, string cargoType)
+        {
+            for (int i = 0; i < buffers.Count; i++)
+            {
+                if (buffers[i] is ReserveBuffer rb &&
+                    rb.Role == BufferRole.MaintenanceReserve &&
+                    string.Equals(rb.CargoType, cargoType, StringComparison.OrdinalIgnoreCase) &&
+                    MowProducerPriorityAdapter.TryGetReserveInfo(industry.identifier, rb.CargoType, null, out MowReserveInfo rInfo) &&
+                    rInfo.IsRefilling)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static float FindMaxStorageForLoad(List<IndustryComponent>? components, Load? targetLoad, string? storagePrefix = null)

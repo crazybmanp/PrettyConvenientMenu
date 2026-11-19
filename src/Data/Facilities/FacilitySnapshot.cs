@@ -20,9 +20,10 @@ namespace PrettyConvenientMenu.Data.Facilities
         public string StatusMessage { get; set; } = string.Empty;
         public List<FacilityAdvisory> DiagnosticAlerts { get; } = new List<FacilityAdvisory>(4);
 
-        public void AddAlert(string message, string? overrideColor = null)
+        public void AddAlert(string message, AdvisoryLevel level = AdvisoryLevel.Notice)
         {
-            DiagnosticAlerts.Add(new FacilityAdvisory(message, overrideColor));
+            if (string.IsNullOrWhiteSpace(message)) return;
+            DiagnosticAlerts.Add(new FacilityAdvisory(message, level));
         }
 
         public BufferCollection Buffers { get; } = new BufferCollection();

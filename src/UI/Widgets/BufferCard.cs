@@ -35,9 +35,8 @@ namespace PrettyConvenientMenu.UI.Widgets
             }
 
             // 1. Header Line
+            bool hasCapacityLimit = buf.MaxCapacity > 0.001f;
             string currentText = FormatHelper.FormatQuantity(buf.CurrentAmount, buf.Units);
-            string maxText = FormatHelper.FormatQuantity(buf.MaxCapacity, buf.Units);
-            string pctText = $"{buf.FillRatio * 100f:F0}%";
 
             string badge = (mode, buf.Role) switch
             {
@@ -47,7 +46,10 @@ namespace PrettyConvenientMenu.UI.Widgets
                 (BufferCardMode.EngineSupply, _) => $"{StatusBadges.GetSupplyRoleBadge()} ",
                 _ => string.Empty
             };
-            RectTransform headerRect = builder.AddLabel($"{badge}<b>{buf.CargoDisplayName}</b>:  {currentText} / {maxText}  ({pctText})");
+            string headerText = hasCapacityLimit
+                ? $"{badge}<b>{buf.CargoDisplayName}</b>:  {currentText} / {FormatHelper.FormatQuantity(buf.MaxCapacity, buf.Units)}  ({buf.FillRatio * 100f:F0}%)"
+                : $"{badge}<b>{buf.CargoDisplayName}</b>:  {currentText}";
+            RectTransform headerRect = builder.AddLabel(headerText);
             TrackHoverHelper.Attach(headerRect, buf.TrackSpanIds);
 
             // 2. Available Amount Line (for Supply & Reserve modes or maintenance reserves)
@@ -85,38 +87,41 @@ namespace PrettyConvenientMenu.UI.Widgets
                 }
             }
 
-            // 3. Progress Bar with Overlays, Calipers & Optional Landing Stack
-            switch ((mode, buf.Role))
+            // 3. Progress Bar with Overlays, Calipers & Optional Landing Stack (only when a capacity limit is defined)
+            if (hasCapacityLimit)
             {
-                case (BufferCardMode.Commercial, BufferRole.MaintenanceReserve):
-                case (BufferCardMode.MowReserve, _):
-                    ProgressBarFactory.CreateMowBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
-                    break;
-                case (BufferCardMode.Commercial, _):
-                    ProgressBarFactory.CreateCommercialBar(
-                        builder,
-                        buf.FillRatio,
-                        buf.ActiveInboundRatio,
-                        buf.ActiveOutboundRatio,
-                        buf.CommittedOutboundRatio,
-                        buf.ScheduledInboundRatio,
-                        landingStack);
-                    break;
-                case (BufferCardMode.EngineSupply, _):
-                    if (buf is ReserveBuffer repairBuf && repairBuf.IsRepairParts)
-                    {
-                        float cap = buf.MaxCapacity;
-                        float programRatio = cap > 0f ? repairBuf.ProgramDemand / cap : 0f;
-                        float spotRatio = cap > 0f ? repairBuf.SpotDemand / cap : 0f;
-                        ProgressBarFactory.CreateRepairPartsBar(builder, buf.FillRatio, buf.ActiveInboundRatio, programRatio, spotRatio, buf.ScheduledInboundRatio);
-                    }
-                    else
-                    {
-                        ProgressBarFactory.CreateEngineSupplyBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
-                    }
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
+                switch ((mode, buf.Role))
+                {
+                    case (BufferCardMode.Commercial, BufferRole.MaintenanceReserve):
+                    case (BufferCardMode.MowReserve, _):
+                        ProgressBarFactory.CreateMowBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
+                        break;
+                    case (BufferCardMode.Commercial, _):
+                        ProgressBarFactory.CreateCommercialBar(
+                            builder,
+                            buf.FillRatio,
+                            buf.ActiveInboundRatio,
+                            buf.ActiveOutboundRatio,
+                            buf.CommittedOutboundRatio,
+                            buf.ScheduledInboundRatio,
+                            landingStack);
+                        break;
+                    case (BufferCardMode.EngineSupply, _):
+                        if (buf is ReserveBuffer repairBuf && repairBuf.IsRepairParts)
+                        {
+                            float cap = buf.MaxCapacity;
+                            float programRatio = cap > 0f ? repairBuf.ProgramDemand / cap : 0f;
+                            float spotRatio = cap > 0f ? repairBuf.SpotDemand / cap : 0f;
+                            ProgressBarFactory.CreateRepairPartsBar(builder, buf.FillRatio, buf.ActiveInboundRatio, programRatio, spotRatio, buf.ScheduledInboundRatio);
+                        }
+                        else
+                        {
+                            ProgressBarFactory.CreateEngineSupplyBar(builder, buf.FillRatio, buf.ActiveInboundRatio, buf.ActiveOutboundRatio, buf.CommittedOutboundRatio, buf.ScheduledInboundRatio);
+                        }
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(mode), mode, null);
+                }
             }
 
             // 4. Active Transfer Row (Loading / Unloading) - Skipped for repair parts since metric rows display Unloading

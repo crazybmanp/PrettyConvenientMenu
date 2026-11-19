@@ -23,6 +23,8 @@ namespace PrettyConvenientMenu.Data.Collectors
             List<IndustryComponent>? components = industry.Components;
             if (components == null) return;
 
+            // Process StorageUnloader first so authoritative storage capacities take precedence
+            // over StorageLoader fallback capacities when sharing the same storage pool.
             foreach (IndustryComponent component in components)
             {
                 if (component is StorageUnloader storageUnloader)
@@ -37,7 +39,11 @@ namespace PrettyConvenientMenu.Data.Collectors
                         snapshot.Buffers.AddReserve(load, BufferRole.MaintenanceReserve, currentStock, Mathf.Max(0.001f, capacity), prefix);
                     }
                 }
-                else if (component is StorageLoader storageLoader)
+            }
+
+            foreach (IndustryComponent component in components)
+            {
+                if (component is StorageLoader storageLoader)
                 {
                     string? prefix = !storageLoader.sharedStorage ? storageLoader.subIdentifier : null;
                     foreach (StorageLoader.LoadEntry entry in storageLoader.loads)
@@ -45,8 +51,8 @@ namespace PrettyConvenientMenu.Data.Collectors
                         if (entry.load is not { } load) continue;
 
                         float currentStock = industry.Storage?.QuantityInStorage(load, prefix) ?? 0f;
-                        float capacity = Mathf.Max(0.001f, load.NominalQuantityPerCarLoad * 10f);
-                        snapshot.Buffers.AddReserve(load, BufferRole.MaintenanceReserve, currentStock, capacity, prefix);
+                        // StorageLoader has no storage capacity field; 0f marks it as unconfigured unless a StorageUnloader defines one.
+                        snapshot.Buffers.AddReserve(load, BufferRole.MaintenanceReserve, currentStock, 0f, prefix);
                     }
                 }
             }

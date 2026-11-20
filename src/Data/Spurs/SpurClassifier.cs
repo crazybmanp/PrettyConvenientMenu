@@ -19,6 +19,11 @@ namespace PrettyConvenientMenu.Data.Spurs
         /// </summary>
         public static CarGroupRole ResolveSpurRole(SpurCapabilities caps)
         {
+            if (caps.IsInterchange)
+            {
+                return CarGroupRole.Interchange;
+            }
+
             if (caps.CanStorageTransfer)
             {
                 return CarGroupRole.MowMaterialHandling;
@@ -71,7 +76,7 @@ namespace PrettyConvenientMenu.Data.Spurs
 
             foreach (IndustryComponent comp in components)
             {
-                if (comp is not (IndustryLoaderBase or IndustryUnloader or RepairTrack or TeamTrack or StorageLoader or StorageUnloader or IndustrySeller))
+                if (comp is not (IndustryLoaderBase or IndustryUnloader or RepairTrack or TeamTrack or StorageLoader or StorageUnloader or IndustrySeller or Interchange))
                 {
                     continue;
                 }

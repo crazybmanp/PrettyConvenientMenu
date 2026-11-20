@@ -21,7 +21,8 @@ namespace PrettyConvenientMenu.Data
             { FacilityType.CommercialFreight, new CommercialFreightCollector() },
             { FacilityType.EngineService, new EngineServiceCollector() },
             { FacilityType.MaintenanceOfWay, new MowYardCollector() },
-            { FacilityType.Depot, new DepotCollector() }
+            { FacilityType.Depot, new DepotCollector() },
+            { FacilityType.Interchange, new InterchangeCollector() }
         };
 
         /// <summary>

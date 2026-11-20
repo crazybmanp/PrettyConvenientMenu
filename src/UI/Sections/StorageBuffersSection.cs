@@ -10,7 +10,7 @@ namespace PrettyConvenientMenu.UI.Sections
     {
         public static void Build(UIPanelBuilder builder, FacilitySnapshot snapshot)
         {
-            if (snapshot.FacilityType == FacilityType.Depot)
+            if (snapshot.FacilityType is FacilityType.Depot or FacilityType.Interchange)
             {
                 return;
             }

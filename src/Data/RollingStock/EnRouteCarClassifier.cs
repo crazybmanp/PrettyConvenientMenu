@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game;
 using Model;
 using Model.Ops;
 using Model.Ops.Definition;
@@ -21,6 +22,11 @@ namespace PrettyConvenientMenu.Data.RollingStock
             if (opsController == null) return;
 
             int spottedGroupCount = snapshot.CarGroups.Count;
+
+            if (snapshot.FacilityType == FacilityType.Interchange)
+            {
+                ClassifyInterchangeBardoCars(industry, snapshot, opsController);
+            }
 
             foreach (Car car in TrainController.Shared.Cars)
             {
@@ -90,7 +96,43 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     }
                 }
 
-                if (destComp == null) continue;
+                if (destComp == null || car.IsInBardo) continue;
+
+                if (destComp is Interchange)
+                {
+                    SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
+                    string detail = !opsCar.IsOwnedByPlayer
+                        ? "Outbound"
+                        : (waybill.Tag == "sell" ? "Selling" : "En Route");
+                    carInfo.MarkEnRoute(detail);
+                    snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
+                    continue;
+                }
+
+                if (destComp is InterchangedIndustryLoader icLoader)
+                {
+                    SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
+                    if (InterchangeHelper.TryCalculateLoaderOrderCost(opsCar, icLoader, out Load? orderLoad, out int goodsCost, out int handlingFee) &&
+                        orderLoad != null)
+                    {
+                        if (snapshot.InterchangeInfo != null)
+                        {
+                            snapshot.InterchangeInfo.EnRouteOrderCount++;
+                            snapshot.InterchangeInfo.EnRouteTotalCost += goodsCost + handlingFee;
+                        }
+
+                        (float qty, float cap) = opsCar.QuantityOfLoad(orderLoad);
+                        carInfo.SetLoad(orderLoad, qty, cap);
+                        carInfo.MarkEnRoute($"Order {orderLoad.description} ({goodsCost + handlingFee:C0})");
+                    }
+                    else
+                    {
+                        carInfo.MarkEnRoute($"En Route ({icLoader.load?.description ?? "Load"})");
+                    }
+
+                    snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
+                    continue;
+                }
 
                 if (destComp is IndustryUnloader or StorageUnloader)
                 {
@@ -144,6 +186,41 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
                     continue;
                 }
+            }
+        }
+
+        private static void ClassifyInterchangeBardoCars(Industry industry, FacilitySnapshot snapshot, OpsController opsController)
+        {
+            Interchange? interchange = industry.GetComponentInChildren<Interchange>();
+            if (interchange == null) return;
+
+            List<BardoCarEntry> entries = InterchangeHelper.EnumerateBardoCars(industry, interchange, opsController);
+            if (entries.Count == 0) return;
+
+            FacilityCarGroup bardoGroup = snapshot.GetOrAddCarGroup("Off-Map (Returning)", CarGroupRole.InterchangeBardo);
+            GameDateTime now = TimeWeather.Now;
+
+            for (int i = 0; i < entries.Count; i++)
+            {
+                BardoCarEntry entry = entries[i];
+                SpottedCarInfo carInfo = new SpottedCarInfo(entry.Car, entry.OpsCar);
+
+                double daysRemaining = Math.Max(0.0, (entry.ExpectedReturnTime - now) * (1.0 / 86400.0));
+                TimeSpan eta = TimeSpan.FromDays(daysRemaining);
+
+                string detail = entry.PaidAmount > 0 ? "Purchased" : "Off-Map";
+                if (entry.OpsCar.Waybill is { } wb)
+                {
+                    string dest = !string.IsNullOrEmpty(wb.Destination.DisplayName) ? wb.Destination.DisplayName : wb.Destination.Identifier;
+                    if (!string.IsNullOrEmpty(dest))
+                    {
+                        if (dest.Length > 24) dest = dest.Substring(0, 22) + "...";
+                        detail = $"To {dest}";
+                    }
+                }
+
+                carInfo.MarkEnRoute(detail, eta);
+                bardoGroup.Cars.Add(carInfo);
             }
         }
 

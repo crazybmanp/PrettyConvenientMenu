@@ -16,8 +16,10 @@ namespace PrettyConvenientMenu.Data.Facilities
         public FacilityType FacilityType { get; set; } = FacilityType.CommercialFreight;
         public int CurrentTier { get; set; }
         public string TierDescription { get; set; } = string.Empty;
+        public FacilityAdvisory? FirstError { get; }
         public ProductionState State { get; set; } = ProductionState.Idle;
         public string StatusMessage { get; set; } = string.Empty;
+        public InterchangeSummary? InterchangeInfo { get; set; }
         public List<FacilityAdvisory> DiagnosticAlerts { get; } = new List<FacilityAdvisory>(4);
 
         public void AddAlert(string message, AdvisoryLevel level = AdvisoryLevel.Notice)
@@ -68,6 +70,7 @@ namespace PrettyConvenientMenu.Data.Facilities
             CarGroups.Clear();
             State = ProductionState.Idle;
             StatusMessage = string.Empty;
+            InterchangeInfo = null;
             DiagnosticAlerts.Clear();
         }
 

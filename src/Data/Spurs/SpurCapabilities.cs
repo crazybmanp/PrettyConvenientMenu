@@ -24,18 +24,23 @@ namespace PrettyConvenientMenu.Data.Spurs
         /// <summary>Indicates whether the spur transfers maintenance-of-way storage supplies.</summary>
         public bool CanStorageTransfer { get; }
 
+        /// <summary>Indicates whether the spur is an off-map interchange track.</summary>
+        public bool IsInterchange { get; }
+
         public SpurCapabilities(
             bool canUnload,
             bool canLoad,
             bool canRepair,
             bool canTeamTrack,
-            bool canStorageTransfer)
+            bool canStorageTransfer,
+            bool isInterchange = false)
         {
             CanUnload = canUnload;
             CanLoad = canLoad;
             CanRepair = canRepair;
             CanTeamTrack = canTeamTrack;
             CanStorageTransfer = canStorageTransfer;
+            IsInterchange = isInterchange;
         }
 
         /// <summary>
@@ -55,18 +60,20 @@ namespace PrettyConvenientMenu.Data.Spurs
             bool canRepair = false;
             bool canTeamTrack = false;
             bool canStorageTransfer = false;
+            bool isInterchange = false;
 
             for (int i = 0; i < components.Count; i++)
             {
                 IndustryComponent comp = components[i];
-                if (comp is IndustryUnloader) canUnload = true;
+                if (comp is Interchange) isInterchange = true;
+                else if (comp is IndustryUnloader) canUnload = true;
                 else if (comp is IndustryLoaderBase or IndustrySeller) canLoad = true;
                 else if (comp is RepairTrack) canRepair = true;
                 else if (comp is TeamTrack) canTeamTrack = true;
                 else if (comp is StorageUnloader or StorageLoader) canStorageTransfer = true;
             }
 
-            return new SpurCapabilities(canUnload, canLoad, canRepair, canTeamTrack, canStorageTransfer);
+            return new SpurCapabilities(canUnload, canLoad, canRepair, canTeamTrack, canStorageTransfer, isInterchange);
         }
     }
 }

@@ -50,8 +50,83 @@ namespace PrettyConvenientMenu.Data.RollingStock
             // Evaluate each car on the spur through the classification hierarchy
             foreach (SpottedCarInfo carInfo in spurGroup.Cars)
             {
-                ClassifyCar(carInfo, componentsOnSpur, industry, repairBuffer, opsController, role);
+                if (role == CarGroupRole.Interchange)
+                {
+                    ClassifyInterchangeCar(carInfo, componentsOnSpur, industry, snapshot);
+                }
+                else
+                {
+                    ClassifyCar(carInfo, componentsOnSpur, industry, repairBuffer, opsController, role);
+                }
             }
+        }
+
+        private static void ClassifyInterchangeCar(
+            SpottedCarInfo carInfo,
+            IReadOnlyList<IndustryComponent> componentsOnSpur,
+            Industry industry,
+            FacilitySnapshot snapshot)
+        {
+            IOpsCar opsCar = carInfo.OpsCar;
+            if (opsCar.Waybill is not { } waybill)
+            {
+                carInfo.MarkPassive("Parked");
+                return;
+            }
+
+            Interchange? interchange = null;
+            for (int i = 0; i < componentsOnSpur.Count; i++)
+            {
+                if (componentsOnSpur[i] is Interchange ic)
+                {
+                    interchange = ic;
+                    break;
+                }
+            }
+
+            if (interchange != null && waybill.Destination.Equals(interchange))
+            {
+                if (!opsCar.IsOwnedByPlayer)
+                {
+                    carInfo.MarkInterchange(CarStatus.Completed, "Outbound");
+                    return;
+                }
+
+                if (waybill.Tag == "sell" && carInfo.Car != null)
+                {
+                    int tradeIn = Game.State.EquipmentPurchase.TradeInValueForCar(carInfo.Car);
+                    carInfo.MarkInterchange(CarStatus.Completed, $"Sell ({tradeIn:C0})");
+                    return;
+                }
+            }
+
+            if (InterchangeHelper.FindTargetLoader(industry, waybill) is { } loader &&
+                InterchangeHelper.TryCalculateLoaderOrderCost(
+                    opsCar,
+                    loader,
+                    out Model.Ops.Definition.Load? load,
+                    out int goodsCost,
+                    out int handlingFee) &&
+                load != null)
+            {
+                if (snapshot.InterchangeInfo != null)
+                {
+                    snapshot.InterchangeInfo.OnTrackOrderCount++;
+                    snapshot.InterchangeInfo.OnTrackGoodsCost += goodsCost;
+                    snapshot.InterchangeInfo.OnTrackHandlingCost += handlingFee;
+                }
+
+                (float qty, float cap) = opsCar.QuantityOfLoad(load);
+                carInfo.SetLoad(load, qty, cap);
+                carInfo.MarkInterchange(CarStatus.Queued, $"Order {load.description} ({goodsCost + handlingFee:C0})");
+                return;
+            }
+
+            string destName = !string.IsNullOrEmpty(waybill.Destination.DisplayName)
+                ? waybill.Destination.DisplayName
+                : waybill.Destination.Identifier;
+            if (destName.Length > 24) destName = destName.Substring(0, 22) + "...";
+            carInfo.MarkInterchange(CarStatus.ActiveTransfer, $"To {destName}");
         }
 
         private static void ClassifyCar(

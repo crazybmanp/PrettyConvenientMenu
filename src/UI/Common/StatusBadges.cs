@@ -47,6 +47,8 @@ namespace PrettyConvenientMenu.UI.Common
             CarGroupRole.EnRouteRepair => ("Program Maintenance — Inbound", "#FF9800"),
             CarGroupRole.DepotHouseTrack => ("House Track — Local Freight", "#FFD54F"),
             CarGroupRole.TeamTrack => ("Team Track — Public Delivery", "#FFD54F"),
+            CarGroupRole.Interchange => ("Interchange Track — Spotted", "#90CAF9"),
+            CarGroupRole.InterchangeBardo => ("Off-Map (Bardo) — Expected Return", "#CE93D8"),
             CarGroupRole.LocomotiveRepair => ("Service & Repair Track", "#B0BEC5"),
             CarGroupRole.LocomotiveFueling => ("Inbound — Fuel & Supply Servicing", "#90CAF9"),
             CarGroupRole.MowStaging => ("Work Equipment & Staging Track", "#FFA726"),

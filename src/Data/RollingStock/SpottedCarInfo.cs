@@ -155,11 +155,19 @@ namespace PrettyConvenientMenu.Data.RollingStock
             StatusDetail = statusDetail;
         }
 
-        public void MarkEnRoute(string statusDetail = "En Route")
+        public void MarkEnRoute(string statusDetail = "En Route", TimeSpan? eta = null)
         {
             TransferRatePerMinute = 0f;
-            EstimatedTimeToCompletion = null;
+            EstimatedTimeToCompletion = eta;
             Status = CarStatus.EnRoute;
+            StatusDetail = statusDetail;
+        }
+
+        public void MarkInterchange(CarStatus status, string statusDetail, TimeSpan? eta = null)
+        {
+            TransferRatePerMinute = 0f;
+            EstimatedTimeToCompletion = eta;
+            Status = status;
             StatusDetail = statusDetail;
         }
     }

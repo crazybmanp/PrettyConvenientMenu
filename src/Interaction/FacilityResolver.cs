@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Helpers;
 using Model.Ops;
+using PrettyConvenientMenu.Data.Helpers;
 using Track;
 using UnityEngine;
 
@@ -29,7 +30,7 @@ namespace PrettyConvenientMenu.Interaction
 
             foreach (Industry? candidate in allIndustries)
             {
-                if (candidate is not { Components: { } components })
+                if (candidate is not { Components: { } components } || !IsFacilityClickable(candidate))
                 {
                     continue;
                 }
@@ -94,6 +95,22 @@ namespace PrettyConvenientMenu.Interaction
             return false;
         }
 
+        private static bool IsFacilityClickable(Industry candidate)
+        {
+            if (candidate == null)
+            {
+                return false;
+            }
+
+            Interchange? interchange = candidate.GetComponentInChildren<Interchange>();
+            if (interchange != null)
+            {
+                return InterchangeHelper.IsInterchangeActive(candidate, interchange);
+            }
+
+            return true;
+        }
+
         private static bool TryResolveFromHierarchy(GameObject hitObject, Industry[] allIndustries, out Industry? industry)
         {
             industry = null;
@@ -103,6 +120,7 @@ namespace PrettyConvenientMenu.Interaction
                 foreach (Industry? candidate in allIndustries)
                 {
                     if (candidate is { identifier: { Length: > 0 } id } &&
+                        IsFacilityClickable(candidate) &&
                         (objName.IndexOf(id, StringComparison.OrdinalIgnoreCase) >= 0 ||
                          candidate.name.Equals(objName, StringComparison.OrdinalIgnoreCase)))
                     {
@@ -128,6 +146,7 @@ namespace PrettyConvenientMenu.Interaction
             foreach (Industry? candidate in allIndustries)
             {
                 if (candidate is { identifier: { Length: > 0 } id } &&
+                    IsFacilityClickable(candidate) &&
                     propId.IndexOf(id, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     industry = candidate;
@@ -162,7 +181,7 @@ namespace PrettyConvenientMenu.Interaction
 
             foreach (Industry? candidate in allIndustries)
             {
-                if (candidate is not { Components: { } components })
+                if (candidate is not { Components: { } components } || !IsFacilityClickable(candidate))
                 {
                     continue;
                 }

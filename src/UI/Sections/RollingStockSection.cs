@@ -18,11 +18,21 @@ namespace PrettyConvenientMenu.UI.Sections
     {
         private const int ColumnCount = 5;
 
-        // Relative flexible width shares for the 5 columns: [Car, Status, Load/Cond, Rate/Parts, ETA]
+        // Relative flexible width shares for 5-column layout: [Car, Status, Load/Cond, Rate/Parts, ETA]
         private static readonly float[] ColumnShares = new float[ColumnCount] { 2.0f, 1.5f, 1.4f, 1.4f, 1.0f };
 
         // Maximum initial text-fitted width caps (px) per column before flexible expansion
         private static readonly float[] ColumnMaxCaps = new float[ColumnCount] { 160f, 140f, 140f, 140f, 80f };
+
+        // 3-column Interchange layout (no Rate, no ETA): [Car, Status, Load]
+        private const int Interchange3ColCount = 3;
+        private static readonly float[] Interchange3ColShares = new float[Interchange3ColCount] { 1.6f, 2.2f, 1.8f };
+        private static readonly float[] Interchange3ColMaxCaps = new float[Interchange3ColCount] { 130f, 160f, 140f };
+
+        // 4-column Interchange Bardo layout (no Rate, includes ETA): [Car, Status, Load, ETA]
+        private const int Interchange4ColCount = 4;
+        private static readonly float[] Interchange4ColShares = new float[Interchange4ColCount] { 1.6f, 2.2f, 1.6f, 0.9f };
+        private static readonly float[] Interchange4ColMaxCaps = new float[Interchange4ColCount] { 115f, 125f, 115f, 65f };
 
         // Table spacing constants (px)
         private const float ColumnSpacing = 4f;
@@ -58,7 +68,29 @@ namespace PrettyConvenientMenu.UI.Sections
 
                 if (allHeaders.Count > 0)
                 {
-                    AutoSizedTable.ApplyColumnWidths(allHeaders, allRows, ColumnShares, ColumnMaxCaps);
+                    if (snapshot.FacilityType == FacilityType.Interchange)
+                    {
+                        List<RectTransform[]> h3 = new List<RectTransform[]>();
+                        List<RectTransform[]> r3 = new List<RectTransform[]>();
+                        List<RectTransform[]> h4 = new List<RectTransform[]>();
+                        List<RectTransform[]> r4 = new List<RectTransform[]>();
+
+                        foreach (RectTransform[] h in allHeaders)
+                        {
+                            (h.Length == Interchange3ColCount ? h3 : h4).Add(h);
+                        }
+                        foreach (RectTransform[] r in allRows)
+                        {
+                            (r.Length == Interchange3ColCount ? r3 : r4).Add(r);
+                        }
+
+                        if (h3.Count > 0) AutoSizedTable.ApplyColumnWidths(h3, r3, Interchange3ColShares, Interchange3ColMaxCaps);
+                        if (h4.Count > 0) AutoSizedTable.ApplyColumnWidths(h4, r4, Interchange4ColShares, Interchange4ColMaxCaps);
+                    }
+                    else
+                    {
+                        AutoSizedTable.ApplyColumnWidths(allHeaders, allRows, ColumnShares, ColumnMaxCaps);
+                    }
                 }
             });
         }
@@ -79,16 +111,18 @@ namespace PrettyConvenientMenu.UI.Sections
                 ? $"<color={group.SwatchHex}>■</color> "
                 : string.Empty;
 
-            string spurTitle = group.IsEnRoute
-                ? $"{swatchPrefix}<color={headerColor}><b>Arriving: {group.TrackName}</b></color>  ({direction})"
-                : $"{swatchPrefix}<color={headerColor}><b>Spur: {group.TrackName}</b></color>  ({direction})";
+            string spurTitle = group.Role == CarGroupRole.InterchangeBardo
+                ? $"{swatchPrefix}<color={headerColor}><b>{group.TrackName}</b></color>  ({direction})"
+                : (group.IsEnRoute
+                    ? $"{swatchPrefix}<color={headerColor}><b>Arriving: {group.TrackName}</b></color>  ({direction})"
+                    : $"{swatchPrefix}<color={headerColor}><b>Spur: {group.TrackName}</b></color>  ({direction})");
             RectTransform labelRect = scrollBuilder.AddLabel(spurTitle, t =>
             {
                 t.textWrappingMode = TextWrappingModes.NoWrap;
                 t.overflowMode = TextOverflowModes.Ellipsis;
             });
 
-            if (!group.IsEnRoute)
+            if (!group.IsEnRoute && group.Role != CarGroupRole.InterchangeBardo)
             {
                 TrackHoverHelper.Attach(labelRect, group.TrackSpanIds);
             }
@@ -102,15 +136,18 @@ namespace PrettyConvenientMenu.UI.Sections
             }
 
             bool isRepairSpur = group.Role is CarGroupRole.LocomotiveRepair or CarGroupRole.EnRouteRepair;
+            bool includeRateColumn = facilityType != FacilityType.Interchange;
+            bool includeEtaColumn = facilityType != FacilityType.Interchange || group.Role == CarGroupRole.InterchangeBardo;
+            int colCount = 3 + (includeRateColumn ? 1 : 0) + (includeEtaColumn ? 1 : 0);
 
             // Render Header
-            RectTransform[] headerCells = new RectTransform[ColumnCount];
+            RectTransform[] headerCells = new RectTransform[colCount];
             scrollBuilder.HStack(h =>
             {
                 h.ConfigureLayout(ColumnSpacing);
                 string col3Title = isRepairSpur ? "<b>Cond</b>" : "<b>Load</b>";
                 string col4Title = isRepairSpur ? "<b>Parts</b>" : "<b>Rate</b>";
-                RenderHeaders(h, headerCells, col3Title, col4Title);
+                RenderHeaders(h, headerCells, col3Title, col4Title, includeRateColumn, includeEtaColumn);
             });
             allHeaders.Add(headerCells);
 
@@ -120,12 +157,12 @@ namespace PrettyConvenientMenu.UI.Sections
             // Render Car Rows
             foreach (SpottedCarInfo car in group.Cars)
             {
-                RectTransform[] rowCells = new RectTransform[ColumnCount];
+                RectTransform[] rowCells = new RectTransform[colCount];
 
                 scrollBuilder.HStack(row =>
                 {
                     row.ConfigureLayout(ColumnSpacing);
-                    RenderRow(row, car, isRepairSpur, facilityType, rowCells);
+                    RenderRow(row, car, isRepairSpur, facilityType, includeRateColumn, includeEtaColumn, rowCells);
                 });
 
                 allRows.Add(rowCells);
@@ -136,25 +173,33 @@ namespace PrettyConvenientMenu.UI.Sections
             scrollBuilder.Spacer(GroupBottomSpacing);
         }
 
-        private static void RenderHeaders(UIPanelBuilder row, RectTransform[] cells, string col3Title, string col4Title)
+        private static void RenderHeaders(UIPanelBuilder row, RectTransform[] cells, string col3Title, string col4Title, bool includeRateColumn, bool includeEtaColumn)
         {
             cells[0] = row.AddLabel("<b>Car</b>", t => t.textWrappingMode = TextWrappingModes.NoWrap);
             cells[1] = row.AddLabel("<b>Status</b>", t => t.textWrappingMode = TextWrappingModes.NoWrap);
             cells[2] = row.AddLabel(col3Title, t =>
             {
-                t.alignment = TextAlignmentOptions.Center;
+                t.alignment = includeEtaColumn ? TextAlignmentOptions.Center : TextAlignmentOptions.Right;
                 t.textWrappingMode = TextWrappingModes.NoWrap;
             });
-            cells[3] = row.AddLabel(col4Title, t =>
+
+            int idx = 3;
+            if (includeRateColumn)
             {
-                t.alignment = TextAlignmentOptions.Right;
-                t.textWrappingMode = TextWrappingModes.NoWrap;
-            });
-            cells[4] = row.AddLabel("<b>ETA</b>", t =>
+                cells[idx++] = row.AddLabel(col4Title, t =>
+                {
+                    t.alignment = TextAlignmentOptions.Right;
+                    t.textWrappingMode = TextWrappingModes.NoWrap;
+                });
+            }
+            if (includeEtaColumn)
             {
-                t.alignment = TextAlignmentOptions.Right;
-                t.textWrappingMode = TextWrappingModes.NoWrap;
-            });
+                cells[idx] = row.AddLabel("<b>ETA</b>", t =>
+                {
+                    t.alignment = TextAlignmentOptions.Right;
+                    t.textWrappingMode = TextWrappingModes.NoWrap;
+                });
+            }
         }
 
         private static void RenderRow(
@@ -162,11 +207,17 @@ namespace PrettyConvenientMenu.UI.Sections
             SpottedCarInfo car,
             bool isRepairSpur,
             FacilityType facilityType,
+            bool includeRateColumn,
+            bool includeEtaColumn,
             RectTransform[] rowCells)
         {
             // Col 1: Car Link / Identifier
             string carLabel = SpurCellFormatter.BuildCarLinkLabel(car);
-            rowCells[0] = row.AddLabel(carLabel, t => t.textWrappingMode = TextWrappingModes.NoWrap);
+            rowCells[0] = row.AddLabel(carLabel, t =>
+            {
+                t.textWrappingMode = TextWrappingModes.NoWrap;
+                t.overflowMode = TextOverflowModes.Ellipsis;
+            });
 
             // Col 2: Status Badge
             (string statusText, string statusColor) = SpurCellFormatter.GetStatusDisplay(car);
@@ -187,24 +238,31 @@ namespace PrettyConvenientMenu.UI.Sections
 
             rowCells[2] = row.AddLabel(col3Str, t =>
             {
-                t.alignment = TextAlignmentOptions.Center;
+                t.alignment = includeEtaColumn ? TextAlignmentOptions.Center : TextAlignmentOptions.Right;
                 t.textWrappingMode = TextWrappingModes.NoWrap;
                 t.overflowMode = TextOverflowModes.Ellipsis;
             });
 
-            rowCells[3] = row.AddLabel(col4Str, t =>
+            int idx = 3;
+            if (includeRateColumn)
             {
-                t.alignment = TextAlignmentOptions.Right;
-                t.textWrappingMode = TextWrappingModes.NoWrap;
-            });
+                rowCells[idx++] = row.AddLabel(col4Str, t =>
+                {
+                    t.alignment = TextAlignmentOptions.Right;
+                    t.textWrappingMode = TextWrappingModes.NoWrap;
+                });
+            }
 
-            // Col 5: ETA
-            string etaStr = SpurCellFormatter.FormatEta(car);
-            rowCells[4] = row.AddLabel(etaStr, t =>
+            if (includeEtaColumn)
             {
-                t.alignment = TextAlignmentOptions.Right;
-                t.textWrappingMode = TextWrappingModes.NoWrap;
-            });
+                string etaStr = SpurCellFormatter.FormatEta(car);
+                rowCells[idx] = row.AddLabel(etaStr, t =>
+                {
+                    t.alignment = TextAlignmentOptions.Right;
+                    t.textWrappingMode = TextWrappingModes.NoWrap;
+                    t.overflowMode = TextOverflowModes.Ellipsis;
+                });
+            }
         }
     }
 }

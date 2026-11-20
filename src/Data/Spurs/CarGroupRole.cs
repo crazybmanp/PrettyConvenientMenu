@@ -14,6 +14,8 @@ namespace PrettyConvenientMenu.Data.Spurs
         MowMaterialHandling,
         DepotHouseTrack,
         TeamTrack,
+        Interchange,
+        InterchangeBardo,
         EnRouteWaybill,
         EnRouteRepair,
         Unknown

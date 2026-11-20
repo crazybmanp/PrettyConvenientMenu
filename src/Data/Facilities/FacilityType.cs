@@ -8,6 +8,7 @@ namespace PrettyConvenientMenu.Data.Facilities
         CommercialFreight,
         EngineService,
         MaintenanceOfWay,
-        Depot
+        Depot,
+        Interchange
     }
 }

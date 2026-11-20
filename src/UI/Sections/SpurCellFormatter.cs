@@ -69,7 +69,7 @@ namespace PrettyConvenientMenu.UI.Sections
             {
                 loadStr = car.CustomLoadString!;
             }
-            else if (facilityType == FacilityType.MaintenanceOfWay)
+            else if (facilityType is FacilityType.MaintenanceOfWay or FacilityType.Interchange)
             {
                 if (car.CurrentAmount > 0.001f)
                 {
@@ -82,9 +82,10 @@ namespace PrettyConvenientMenu.UI.Sections
                 {
                     bool isQueuedOrTransferring = car.Status == CarStatus.ActiveTransfer ||
                                                   car.Status == CarStatus.Queued ||
-                                                  car.Status == CarStatus.Blocked;
+                                                  car.Status == CarStatus.Blocked ||
+                                                  (facilityType == FacilityType.Interchange && car.Status == CarStatus.EnRoute);
 
-                    loadStr = (isQueuedOrTransferring && !string.IsNullOrEmpty(car.CargoName) && car.CargoName != "Cargo" && car.CargoName != "Material")
+                    loadStr = (isQueuedOrTransferring && !string.IsNullOrEmpty(car.CargoName) && car.CargoName != "Empty" && car.CargoName != "Cargo" && car.CargoName != "Material")
                         ? $"Empty ({car.CargoName})"
                         : "Empty";
                 }

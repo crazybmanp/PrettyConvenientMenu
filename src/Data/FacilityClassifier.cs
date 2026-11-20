@@ -17,6 +17,7 @@ namespace PrettyConvenientMenu.Data
             List<IndustryComponent>? components = industry.Components;
             if (components != null)
             {
+                bool hasInterchange = false;
                 bool hasStorageLoaderOrUnloader = false;
                 bool hasRepairTrack = false;
                 bool hasTeamTrack = false;
@@ -26,6 +27,10 @@ namespace PrettyConvenientMenu.Data
 
                 foreach (IndustryComponent c in components)
                 {
+                    if (c is Interchange or InterchangedIndustryLoader)
+                    {
+                        hasInterchange = true;
+                    }
                     if (c is StorageLoader or StorageUnloader)
                     {
                         hasStorageLoaderOrUnloader = true;
@@ -54,6 +59,12 @@ namespace PrettyConvenientMenu.Data
                             hasServiceUnloader = true;
                         }
                     }
+                }
+
+                // 0. Interchanges
+                if (hasInterchange)
+                {
+                    return FacilityType.Interchange;
                 }
 
                 // 1. MOW Supply Tracks (ties, rails, ballast)

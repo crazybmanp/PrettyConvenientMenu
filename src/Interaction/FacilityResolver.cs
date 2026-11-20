@@ -97,7 +97,10 @@ namespace PrettyConvenientMenu.Interaction
 
         private static bool IsFacilityClickable(Industry candidate)
         {
-            if (candidate == null)
+            if (candidate == null ||
+                (!string.IsNullOrEmpty(candidate.identifier) &&
+                 (candidate.identifier.StartsWith("gw_area_", StringComparison.OrdinalIgnoreCase) ||
+                  candidate.identifier.StartsWith("gw_zone_", StringComparison.OrdinalIgnoreCase))))
             {
                 return false;
             }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game;
 using Model;
 using Model.Ops;
+using Model.Ops.AutoDestinations;
 using Model.Ops.Definition;
 using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
@@ -63,9 +64,18 @@ namespace PrettyConvenientMenu.Data.RollingStock
 
                 if (opsCar.Waybill is not { } waybill) continue;
 
+                // Area-level and zone-level General Waybilling destinations do not target a single real
+                // industry; skip them so we don't show or count ambiguous cars on facilities.
+                string destId = waybill.Destination.Identifier;
+                if (!string.IsNullOrEmpty(destId) &&
+                    (destId.StartsWith("gw_area_", StringComparison.OrdinalIgnoreCase) ||
+                     destId.StartsWith("gw_zone_", StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
                 // 1. Try exact destination identifier match on components (handles specific spurs and general destinations)
                 IndustryComponent? destComp = null;
-                string destId = waybill.Destination.Identifier;
                 if (!string.IsNullOrEmpty(destId))
                 {
                     foreach (IndustryComponent comp in components)
@@ -134,7 +144,9 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     continue;
                 }
 
-                if (destComp is IndustryUnloader or StorageUnloader)
+                bool isGeneralComponent = CarTrackingHelper.TryGetGeneralComponentInfo(destComp, out Load? generalLoad, out AutoDestinationType generalDestType);
+
+                if (destComp is IndustryUnloader or StorageUnloader || (isGeneralComponent && generalDestType == AutoDestinationType.Load))
                 {
                     (Load? inLoad, float qty, float cap) = CarTrackingHelper.GetCarCargo(car, opsCar);
                     if (inLoad == null || qty <= 0.001f) continue;
@@ -163,14 +175,14 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     continue;
                 }
 
-                if (destComp is StorageLoader or IndustryLoaderBase or IndustrySeller || destComp.GetType().Name == "GeneralIndustryLoader")
+                if (destComp is StorageLoader or IndustryLoaderBase or IndustrySeller || (isGeneralComponent && generalDestType == AutoDestinationType.Empty))
                 {
                     Load? outLoad = destComp is IndustryLoaderBase { load: { } lLoad }
                         ? lLoad
                         : (destComp is IndustrySeller seller && !string.IsNullOrEmpty(seller.loadId)
                             ? CarLoadLibrary.GetLoad(seller.loadId)
-                            : (destComp.GetType().Name == "GeneralIndustryLoader"
-                                ? destComp.GetType().GetProperty("TargetLoad")?.GetValue(destComp) as Load
+                            : (isGeneralComponent
+                                ? generalLoad
                                 : (!string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null)));
                     if (outLoad == null) continue;
 

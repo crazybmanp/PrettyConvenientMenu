@@ -82,6 +82,32 @@ namespace PrettyConvenientMenu.Data.Helpers
         }
 
         /// <summary>
+        /// Inspects a General Waybilling <c>GeneralIndustryComponent</c> via reflection to extract its
+        /// target load and destination type (<c>Empty</c> for loading, <c>Load</c> for unloading).
+        /// </summary>
+        public static bool TryGetGeneralComponentInfo(
+            IndustryComponent? component,
+            out Load? targetLoad,
+            out AutoDestinationType destinationType)
+        {
+            targetLoad = null;
+            destinationType = AutoDestinationType.Empty;
+            if (component == null || component.GetType().Name != "GeneralIndustryComponent")
+            {
+                return false;
+            }
+
+            Type type = component.GetType();
+            targetLoad = type.GetProperty("TargetLoad")?.GetValue(component) as Load;
+            if (type.GetProperty("TargetDestinationType")?.GetValue(component) is AutoDestinationType destType)
+            {
+                destinationType = destType;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// A captive loader does not order empties. A captive unloader does not order loads.
         /// Those are the two auto-destination stops the game offers for captive service.
         /// </summary>
@@ -96,11 +122,7 @@ namespace PrettyConvenientMenu.Data.Helpers
                 case IndustrySeller:
                     return true;
                 default:
-                    if (component != null && component.GetType().Name == "GeneralIndustryLoader")
-                    {
-                        return true;
-                    }
-                    return false;
+                    return TryGetGeneralComponentInfo(component, out _, out _);
             }
         }
 

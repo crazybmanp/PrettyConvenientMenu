@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Model.Ops;
+using Model.Ops.AutoDestinations;
 using Model.Ops.Definition;
+using PrettyConvenientMenu.Data.Helpers;
 using PrettyConvenientMenu.Data.Spurs;
 
 namespace PrettyConvenientMenu.Data.Buffers
@@ -193,11 +195,19 @@ namespace PrettyConvenientMenu.Data.Buffers
                     targetRole = null;
                     break;
                 default:
-                    if (component.GetType().Name == "GeneralIndustryLoader")
+                    if (CarTrackingHelper.TryGetGeneralComponentInfo(component, out Load? generalLoad, out AutoDestinationType destType))
                     {
-                        load ??= component.GetType().GetProperty("TargetLoad")?.GetValue(component) as Load;
-                        isUnload = false;
-                        targetRole = BufferRole.CommercialOutput;
+                        load ??= generalLoad;
+                        if (destType == AutoDestinationType.Load)
+                        {
+                            isUnload = true;
+                            targetRole = null;
+                        }
+                        else
+                        {
+                            isUnload = false;
+                            targetRole = BufferRole.CommercialOutput;
+                        }
                     }
                     break;
             }

@@ -35,6 +35,12 @@ namespace PrettyConvenientMenu.Interaction
         {
             try
             {
+                // Yield world clicks while the Supply Fleet World Car Picker is active
+                if (WorldCarPicker.Shared != null && WorldCarPicker.Shared.IsActive)
+                {
+                    return;
+                }
+
                 // 1. Gatekeep input and active UI states
                 if (!WorldInteractionGatekeeper.CanProcessWorldClick())
                 {

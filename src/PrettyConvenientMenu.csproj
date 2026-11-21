@@ -32,6 +32,10 @@
       <HintPath>$(ManagedDir)\Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="KeyValue.Runtime">
+      <HintPath>$(ManagedDir)\KeyValue.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(ManagedDir)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>

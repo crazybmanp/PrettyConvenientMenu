@@ -68,6 +68,15 @@ namespace PrettyConvenientMenu
                 Log.Error(ex, "Failed to initialize SettingsUi.");
             }
 
+            try
+            {
+                UI.SupplyFleet.WorkTrainInspectorSection.Register();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to register CarInspector WorkTrain extension.");
+            }
+
             // If world was already loaded prior to mod load, initialize interaction host immediately
             if (Model.Ops.OpsController.Shared is not null && interactionHost is null)
             {
@@ -102,10 +111,12 @@ namespace PrettyConvenientMenu
 
             Log.Info("World loaded: Initializing PrettyConvenientMenu World Interaction Host...");
 
-            // Set up interaction listener for 3D world raycasting
+            // Set up interaction listener for 3D world raycasting, world car picker, and Supply Fleet store
             interactionHost = new GameObject("PrettyConvenientMenu_InteractionHost");
             UnityEngine.Object.DontDestroyOnLoad(interactionHost);
+            interactionHost.AddComponent<Interaction.WorldCarPicker>();
             interactionHost.AddComponent<Interaction.FacilityWorldInteraction>();
+            interactionHost.AddComponent<Data.SupplyFleet.SupplyFleetStore>();
         }
 
         public void OnWorldUnload()

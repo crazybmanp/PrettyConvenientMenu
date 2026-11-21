@@ -43,10 +43,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
     public sealed class SquareProgressBar
     {
         private readonly List<BarSegment> segments = new List<BarSegment>(4);
-        private bool hasMarker;
-        private float markerPosition;
-        private Color markerColor = Color.white;
-        private float markerWidth = 2f;
+        private readonly List<(float Position, Color Color, float Width)> markers = new List<(float, Color, float)>(2);
 
         private bool hasCaliper;
         private float caliperOrigin;
@@ -76,10 +73,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
         /// </summary>
         public SquareProgressBar WithMarker(float position, Color color, float width = 2f)
         {
-            hasMarker = true;
-            markerPosition = Mathf.Clamp01(position);
-            markerColor = color;
-            markerWidth = width;
+            markers.Add((Mathf.Clamp01(position), color, width));
             return this;
         }
 
@@ -318,33 +312,41 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                     segRt.offsetMax = Vector2.zero;
                 }
 
-                // Marker / Needle
-                Transform markerTransform = fillArea.Find("ActiveNeedle");
-                if (hasMarker)
+                // Markers / Needles (supports multiple markers such as Storage Cap + Target Line)
+                for (int i = 0; i < fillArea.childCount; i++)
                 {
+                    Transform child = fillArea.GetChild(i);
+                    if (child.name.StartsWith("ActiveNeedle", StringComparison.Ordinal))
+                    {
+                        child.gameObject.SetActive(false);
+                    }
+                }
+
+                for (int i = 0; i < markers.Count; i++)
+                {
+                    (float pos, Color color, float width) = markers[i];
+                    string markerName = $"ActiveNeedle_{i}";
+                    Transform markerTransform = fillArea.Find(markerName);
                     GameObject markerObj = markerTransform == null
-                        ? new GameObject("ActiveNeedle", typeof(RectTransform), typeof(Image))
+                        ? new GameObject(markerName, typeof(RectTransform), typeof(Image))
                         : markerTransform.gameObject;
                     if (markerTransform == null)
                     {
                         markerObj.transform.SetParent(fillArea, false);
                     }
                     markerObj.SetActive(true);
+                    markerObj.transform.SetAsLastSibling();
 
                     RectTransform needleRt = markerObj.GetComponent<RectTransform>();
-                    needleRt.anchorMin = new Vector2(markerPosition, 0f);
-                    needleRt.anchorMax = new Vector2(markerPosition, 1f);
-                    float halfW = markerWidth * 0.5f;
+                    needleRt.anchorMin = new Vector2(pos, 0f);
+                    needleRt.anchorMax = new Vector2(pos, 1f);
+                    float halfW = width * 0.5f;
                     needleRt.offsetMin = new Vector2(-halfW, 0f);
                     needleRt.offsetMax = new Vector2(halfW, 0f);
 
                     Image needleImg = markerObj.GetComponent<Image>();
-                    needleImg.color = markerColor;
+                    needleImg.color = color;
                     needleImg.sprite = null;
-                }
-                else if (markerTransform != null)
-                {
-                    markerTransform.gameObject.SetActive(false);
                 }
             }
 

@@ -60,7 +60,7 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
         }
 
         /// <summary>
-        /// Creates a maintenance-of-way reserve material progress bar.
+        /// Creates a maintenance-of-way reserve material progress bar with an optional target-stock marker.
         /// </summary>
         public static void CreateMowBar(
             UIPanelBuilder builder,
@@ -68,7 +68,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             float deliveryRatio = 0f,
             float outgoingRatio = 0f,
             float committedRatio = 0f,
-            float inboundRatio = 0f)
+            float inboundRatio = 0f,
+            float? targetRatio = null,
+            float? storageCapRatio = null)
         {
             CreateStandardTransferBar(
                 builder,
@@ -79,7 +81,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 inboundRatio,
                 stockColor: new Color(0.94f, 0.92f, 0.88f, 1f),
                 deliveryColor: new Color(0.30f, 0.69f, 0.31f, 0.85f),
-                outgoingColor: new Color(1.0f, 0.60f, 0.0f, 1f)
+                outgoingColor: new Color(1.0f, 0.60f, 0.0f, 1f),
+                targetRatio: targetRatio,
+                storageCapRatio: storageCapRatio
             );
         }
 
@@ -145,7 +149,9 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
             Color stockColor,
             Color deliveryColor,
             Color outgoingColor,
-            IReadOnlyList<LandingSegment>? landingStack = null)
+            IReadOnlyList<LandingSegment>? landingStack = null,
+            float? targetRatio = null,
+            float? storageCapRatio = null)
         {
             SquareProgressBar bar = new SquareProgressBar();
 
@@ -167,10 +173,18 @@ namespace PrettyConvenientMenu.UI.Widgets.ProgressBar
                 bar.AddBar(outgoingRatio, SegmentStyle.Striped(outgoingColor), StackDirection.Backward);
             }
 
-            // 4. Transition Needle
+            // 4. Transition Needle / Storage Cap / Target Stock Markers
             float totalAdded = stockRatio + deliveryRatio;
             float netActivePoint = Mathf.Clamp01(outgoingRatio > 0.001f ? totalAdded - outgoingRatio : totalAdded);
-            if (deliveryRatio > 0.001f || outgoingRatio > 0.001f)
+            if (storageCapRatio.HasValue && storageCapRatio.Value > 0.001f && storageCapRatio.Value < 0.999f)
+            {
+                bar.WithMarker(Mathf.Clamp01(storageCapRatio.Value), new Color(0.85f, 0.88f, 0.92f, 0.95f), width: 2f);
+            }
+            if (targetRatio.HasValue && targetRatio.Value > 0.001f)
+            {
+                bar.WithMarker(Mathf.Clamp01(targetRatio.Value), new Color(1.0f, 0.78f, 0.22f, 1f), width: 2f);
+            }
+            else if (deliveryRatio > 0.001f || outgoingRatio > 0.001f)
             {
                 bar.WithMarker(netActivePoint, Color.white);
             }

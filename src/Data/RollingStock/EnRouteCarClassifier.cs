@@ -9,6 +9,7 @@ using PrettyConvenientMenu.Data.Buffers;
 using PrettyConvenientMenu.Data.Facilities;
 using PrettyConvenientMenu.Data.Helpers;
 using PrettyConvenientMenu.Data.Spurs;
+using PrettyConvenientMenu.Data.SupplyFleet;
 using UnityEngine;
 
 namespace PrettyConvenientMenu.Data.RollingStock
@@ -62,7 +63,11 @@ namespace PrettyConvenientMenu.Data.RollingStock
                 }
                 if (handledByRepair) continue;
 
-                if (opsCar.Waybill is not { } waybill) continue;
+                if (opsCar.Waybill is not { } waybill)
+                {
+                    TryClassifyPendingSupplyInbound(car, opsCar, industry, snapshot);
+                    continue;
+                }
 
                 // Area-level and zone-level General Waybilling destinations do not target a single real
                 // industry; skip them so we don't show or count ambiguous cars on facilities.
@@ -71,6 +76,7 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     (destId.StartsWith("gw_area_", StringComparison.OrdinalIgnoreCase) ||
                      destId.StartsWith("gw_zone_", StringComparison.OrdinalIgnoreCase)))
                 {
+                    TryClassifyPendingSupplyInbound(car, opsCar, industry, snapshot);
                     continue;
                 }
 
@@ -89,13 +95,8 @@ namespace PrettyConvenientMenu.Data.RollingStock
                 }
 
                 // 2. Fallback: match via IsWaybilledHere if destination identifier was not an exact component match
-                if (destComp == null)
+                if (destComp == null && CarTrackingHelper.IsWaybilledHere(waybill, industry))
                 {
-                    if (!CarTrackingHelper.IsWaybilledHere(waybill, industry))
-                    {
-                        continue;
-                    }
-
                     foreach (IndustryComponent comp in components)
                     {
                         if (CarTrackingHelper.IsWaybilledHere(waybill, industry, comp))
@@ -106,7 +107,16 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     }
                 }
 
-                if (destComp == null || car.IsInBardo) continue;
+                // 3. Fallback: outbound leg of a Supply Fleet Work Order that will return loaded to this facility.
+                // Only runs when the car is NOT already spotted here and NOT currently waybilled here,
+                // guaranteeing zero double-counting once the car flips to the inbound leg.
+                if (destComp == null)
+                {
+                    TryClassifyPendingSupplyInbound(car, opsCar, industry, snapshot);
+                    continue;
+                }
+
+                if (car.IsInBardo) continue;
 
                 if (destComp is Interchange)
                 {
@@ -143,7 +153,6 @@ namespace PrettyConvenientMenu.Data.RollingStock
                     snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
                     continue;
                 }
-
                 bool isGeneralComponent = CarTrackingHelper.TryGetGeneralComponentInfo(destComp, out Load? generalLoad, out AutoDestinationType generalDestType);
 
                 if (destComp is IndustryUnloader or StorageUnloader || (isGeneralComponent && generalDestType == AutoDestinationType.Load))
@@ -184,6 +193,19 @@ namespace PrettyConvenientMenu.Data.RollingStock
                             : (isGeneralComponent
                                 ? generalLoad
                                 : (!string.IsNullOrEmpty(waybill.Tag) ? CarLoadLibrary.GetLoad(waybill.Tag) : null)));
+
+                    // Fallback for Supply Fleet outbound Work Orders heading to a multi-load StorageLoader
+                    if (outLoad == null && destComp is StorageLoader && SupplyFleetStore.Shared != null)
+                    {
+                        WorkOrder? activeOrder = SupplyFleetStore.Shared.GetOrderForCar(car);
+                        if (activeOrder != null &&
+                            !activeOrder.HasBeenLoaded &&
+                            string.Equals(activeOrder.SourceId, destComp.Identifier, StringComparison.OrdinalIgnoreCase) &&
+                            !string.IsNullOrEmpty(activeOrder.LoadId))
+                        {
+                            outLoad = CarLoadLibrary.GetLoad(activeOrder.LoadId);
+                        }
+                    }
                     if (outLoad == null) continue;
 
                     (float qty, float cap) = opsCar.QuantityOfLoad(outLoad);
@@ -234,6 +256,47 @@ namespace PrettyConvenientMenu.Data.RollingStock
                 carInfo.MarkEnRoute(detail, eta);
                 bardoGroup.Cars.Add(carInfo);
             }
+        }
+
+        private static void TryClassifyPendingSupplyInbound(Car car, IOpsCar opsCar, Industry industry, FacilitySnapshot snapshot)
+        {
+            WorkOrder? activeOrder = SupplyFleetStore.Shared?.GetOrderForCar(car);
+            if (activeOrder == null)
+            {
+                return;
+            }
+
+            IndustryComponent? orderDestComp = activeOrder.FindInboundDestinationComponent(industry);
+            if (orderDestComp == null)
+            {
+                return;
+            }
+
+            Load? load = CarLoadLibrary.GetLoad(activeOrder.LoadId);
+            if (load == null)
+            {
+                return;
+            }
+
+            (float currentQty, float cap) = opsCar.QuantityOfLoad(load);
+            float incomingQty = activeOrder.ExpectedQuantity > 0.001f ? activeOrder.ExpectedQuantity : cap;
+            if (incomingQty <= 0.001f)
+            {
+                return;
+            }
+
+            if (snapshot.Buffers.FindMatching(orderDestComp, load) is { } buf)
+            {
+                buf.ScheduledInbound += incomingQty;
+            }
+
+            SpottedCarInfo carInfo = new SpottedCarInfo(car, opsCar);
+            carInfo.SetLoad(load, currentQty, cap > 0.001f ? cap : incomingQty);
+            string detail = string.IsNullOrEmpty(activeOrder.SourceDisplayName)
+                ? "En Route (Loading)"
+                : $"Loading ({activeOrder.SourceDisplayName})";
+            carInfo.MarkEnRoute(detail);
+            snapshot.GetOrAddCarGroup("En Route (Arriving)", CarGroupRole.EnRouteWaybill).Cars.Add(carInfo);
         }
 
         private static bool IsAlreadySpotted(List<FacilityCarGroup> groups, int count, Car car)

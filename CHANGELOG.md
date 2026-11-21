@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+- Added **Supply & MOW Fleet Manager (In-Development)**: track supply cars, manage MOW stockpile targets and projects, dispatch supply work orders, and manage work trains from the fleet window and Car Inspector.
+- Added interchange Facility Monitor support, tracking outbound/returning off-map cars, interchange orders, and fee estimates (#13).
+- Added support for General Waybilling area and zone destinations.
+- Unified advisory levels, rail tags, and MoW diversion diagnostics (#11).
+- Fixed `StorageUnloader` capacity reporting and omitted unconfigured `StorageLoader` limits (#12).
+- Fixed inbound delivery tracking on unloaders for locomotive engine supplies and MoW maintenance reserves.
+
 ## 0.4.1
 - Added track-span hover highlighting: hovering a spur header in **Rolling Stock** or a storage buffer header in **Storage Buffers** / **Locomotive Supplies & Reserves** / **Track Maintenance Material Reserves** highlights the corresponding track(s) in the 3D world (#10).
 - Updated `railroader-mod-settings` (`SettingsSection.cs`) to Revision 10, adding search/filtering and alphabetical sorting in the shared **Preferences -> Mods** tab along with improved label wrapping and UI refinements.
